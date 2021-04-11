@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	sdk "agones.dev/agones/sdks/go"
 	mcpinger "github.com/Raqbit/mc-pinger"
 )
 
@@ -28,8 +29,15 @@ func init() {
 }
 
 func main() {
+	// connect to local SDK server
+	client, err := sdk.NewSDK()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// Ping server until startup
-	info, err := pingUntilSuccessful(retry)
+	_, err = pingUntilSuccessful(retry)
 
 	// Exit in case of unsuccessful startup
 	if err != nil {
@@ -37,13 +45,20 @@ func main() {
 		logger.Fatal("Fatal Mincraft server. Exiting...")
 	}
 
-	logger.Println(info)
+	// Signal that server is ready for players
+	err = client.Ready()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	logger.Println("Server Ready")
 
 	// Pause before starting next ping cycle
 	time.Sleep(interval)
 
 	// Ping infinitely or until after a series of unsuccessful pings
-	err = pingUntilFatal(retry)
+	err = pingUntilFatal(retry, client)
 
 	// Exit in case of fatal server
 	if err != nil {
@@ -84,14 +99,23 @@ func pingUntilSuccessful(retry uint) (*mcpinger.ServerInfo, error) {
 }
 
 // Pings the server infinitely or the server fails to reposnd after a series of retries
-func pingUntilFatal(retry uint) error {
+// Signals to local SDK that server is healthy
+func pingUntilFatal(retry uint, client *sdk.SDK) error {
 	for {
-		info, err := pingUntilSuccessful(retry)
+		_, err := pingUntilSuccessful(retry)
 
 		if err != nil {
 			return err
 		}
 
-		logger.Println(info)
+		// Signal that server is healthy
+		err = client.Health()
+
+		if err != nil {
+			logger.Fatal(err)
+		}
+
+		logger.Printf("Server healthy")
+		time.Sleep(interval)
 	}
 }
