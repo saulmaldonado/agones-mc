@@ -57,10 +57,14 @@ func (p *AgonesPinger) HealthPing() error {
 // Pings the minecraft server and sends Ready() signal to the local Agones server on localhost port 9357
 // Returns an error if the ping is unsuccessful
 func (p *AgonesPinger) ReadyPing() error {
-	_, err := p.ping()
+	info, err := p.ping()
 
 	if err != nil {
 		return err
+	}
+
+	if info.Players.Max == 0 {
+		return StartingUpErr{}
 	}
 
 	return p.Sdk.Ready()
@@ -90,10 +94,14 @@ func (p *AgonesPinger) ReadyPingWithTimeout() error {
 		return errors.New("ping timeout is set to 0s")
 	}
 
-	_, err := p.pingWithTimeout()
+	info, err := p.pingWithTimeout()
 
 	if err != nil {
 		return err
+	}
+
+	if info.Players.Max == 0 {
+		return StartingUpErr{}
 	}
 
 	return p.Sdk.Ready()
@@ -105,4 +113,10 @@ func (p *AgonesPinger) ping() (*mcpinger.ServerInfo, error) {
 
 func (p *AgonesPinger) pingWithTimeout() (*mcpinger.ServerInfo, error) {
 	return mcpinger.NewTimed(p.host, p.port, p.timeout).Ping()
+}
+
+type StartingUpErr struct{}
+
+func (e StartingUpErr) Error() string {
+	return "server starting up..."
 }
