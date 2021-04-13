@@ -14,6 +14,8 @@ var port uint
 var retry uint
 var interval time.Duration
 var timeout time.Duration
+var intialDelay time.Duration
+
 var logger *log.Logger
 
 func init() {
@@ -22,6 +24,7 @@ func init() {
 	flag.DurationVar(&interval, "interval", time.Second*10, "Server ping interval")
 	flag.UintVar(&retry, "retry", 5, "Ping retry attempt limit")
 	flag.DurationVar(&timeout, "timeout", interval, "Ping timeout")
+	flag.DurationVar(&intialDelay, "initial delay", time.Minute, "Initial startup delay before first ping")
 
 	flag.Parse()
 	logger = log.New(os.Stdout, "[agones-mc-monitor] ", log.Ltime|log.Ldate)
@@ -33,6 +36,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Startup delay before the first ping
+	logger.Println("Starting up...")
+	time.Sleep(intialDelay)
 
 	// Ping server until startup
 	err = pingUntilStartup(retry, interval, pinger)
