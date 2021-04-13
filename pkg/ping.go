@@ -1,6 +1,7 @@
 package ping
 
 import (
+	"errors"
 	"time"
 
 	sdk "agones.dev/agones/sdks/go"
@@ -68,6 +69,10 @@ func (p *AgonesPinger) ReadyPing() error {
 // Pings the minecraft server and sends Health() signal to the local Agones server on localhost port 9357
 // Returns an error if the ping is unsuccessful or timeouts
 func (p *AgonesPinger) HealthPingWithTimeout() error {
+	if p.timeout == 0 {
+		return errors.New("ping timeout is set to 0s")
+	}
+
 	_, err := p.pingWithTimeout()
 
 	if err != nil {
@@ -81,6 +86,10 @@ func (p *AgonesPinger) HealthPingWithTimeout() error {
 // Pings the minecraft server and sends Ready() signal to the local Agones server on localhost port 9357
 // Returns an error if the ping is unsuccessful or timeouts
 func (p *AgonesPinger) ReadyPingWithTimeout() error {
+	if p.timeout == 0 {
+		return errors.New("ping timeout is set to 0s")
+	}
+
 	_, err := p.pingWithTimeout()
 
 	if err != nil {
