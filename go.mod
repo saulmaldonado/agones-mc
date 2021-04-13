@@ -1,4 +1,4 @@
-module github.com/saulmaldonado/agones-minecraft
+module github.com/saulmaldonado/agones-mc-monitor
 
 go 1.16
 
