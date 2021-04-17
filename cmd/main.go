@@ -11,7 +11,7 @@ import (
 
 var host string
 var port uint
-var retry uint
+var attempts uint
 var interval time.Duration
 var timeout time.Duration
 var intialDelay time.Duration
@@ -22,9 +22,9 @@ func init() {
 	flag.StringVar(&host, "host", "localhost", "Minecraft server host")
 	flag.UintVar(&port, "port", 25565, "Minecraft server port")
 	flag.DurationVar(&interval, "interval", time.Second*10, "Server ping interval")
-	flag.UintVar(&retry, "retry", 5, "Ping retry attempt limit")
+	flag.UintVar(&attempts, "attempts", 5, "Ping attempt limit. Process will end after failing the last attempt")
 	flag.DurationVar(&timeout, "timeout", interval, "Ping timeout")
-	flag.DurationVar(&intialDelay, "initial delay", time.Minute, "Initial startup delay before first ping")
+	flag.DurationVar(&intialDelay, "initial-delay", time.Minute, "Initial startup delay before first ping")
 
 	flag.Parse()
 	logger = log.New(os.Stdout, "[agones-mc-monitor] ", log.Ltime|log.Ldate)
@@ -42,7 +42,7 @@ func main() {
 	time.Sleep(intialDelay)
 
 	// Ping server until startup
-	err = pingUntilStartup(retry, interval, pinger)
+	err = pingUntilStartup(attempts, interval, pinger)
 
 	// Exit in case of unsuccessful startup
 	if err != nil {
@@ -54,7 +54,7 @@ func main() {
 	time.Sleep(interval)
 
 	// Ping infinitely or until after a series of unsuccessful pings
-	err = pingUntilFatal(retry, interval, pinger)
+	err = pingUntilFatal(attempts, interval, pinger)
 
 	// Exit in case of fatal server
 	if err != nil {
@@ -66,8 +66,8 @@ func main() {
 // Pings server with the specified retries until the server returns a complete response
 // Will also signal the local Agones server with Ready()
 // Returns an error if the pings or singaling local Agones server fails
-func pingUntilStartup(retry uint, interval time.Duration, pinger *ping.AgonesPinger) error {
-	err := retryPing(retry, interval, pinger.ReadyPingWithTimeout)
+func pingUntilStartup(attempts uint, interval time.Duration, pinger *ping.AgonesPinger) error {
+	err := retryPing(attempts, interval, pinger.ReadyPingWithTimeout)
 
 	if err != nil {
 		return err
@@ -79,9 +79,9 @@ func pingUntilStartup(retry uint, interval time.Duration, pinger *ping.AgonesPin
 
 // Pings the server infinitely or the server fails to reposnd after a series of retries
 // Signals to local SDK that server is healthy
-func pingUntilFatal(retry uint, interval time.Duration, pinger *ping.AgonesPinger) error {
+func pingUntilFatal(attempts uint, interval time.Duration, pinger *ping.AgonesPinger) error {
 	for {
-		err := retryPing(retry, interval, pinger.HealthPingWithTimeout)
+		err := retryPing(attempts, interval, pinger.HealthPingWithTimeout)
 
 		if err != nil {
 			return err
