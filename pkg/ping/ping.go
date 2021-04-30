@@ -8,56 +8,64 @@ import (
 	mcpinger "github.com/Raqbit/mc-pinger"
 )
 
-type AgonesPinger struct {
-	host    string
-	port    uint16
-	timeout time.Duration
-	Sdk     *sdk.SDK
+// Minecraft server pinger and SDK state manager
+type ServerPinger struct {
+	host   string
+	port   uint16
+	sdk    *sdk.SDK
+	pinger Pinger
+}
+
+// Interface for pinger implementation
+type Pinger interface {
+	Ping() (*mcpinger.ServerInfo, error)
+	PingWithTimeout() (*mcpinger.ServerInfo, error)
+	IsTimeoutZero() bool
 }
 
 // Creates a new AgonesPinger with that will ping the minecraft server at the given host and on the given port.
 // Also initializes a connection with the local Agones server on localhost port 9357.
 // Blocks until connection and handshake is made. Timesout and returns an error after 30 seconds
-func New(host string, port uint16) (*AgonesPinger, error) {
+func New(host string, port uint16) (*ServerPinger, error) {
 	sdk, err := sdk.NewSDK()
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &AgonesPinger{host: host, port: port, Sdk: sdk}, nil
+	return &ServerPinger{host, port, sdk, &McPinger{Port: port, Host: host, Timeout: 0}}, nil
 }
 
 // Creates a new AgonesPinger with that will ping the minecraft server at the given host and on the given port.
 // Ping will timeout after the give timeout duration.
 // Also initializes a connection with the local Agones server on localhost port 9357.
 // Blocks until connection and handshake is made. Timesout and returns an error after 30 seconds
-func NewTimed(host string, port uint16, timeout time.Duration) (*AgonesPinger, error) {
+func NewTimed(host string, port uint16, timeout time.Duration) (*ServerPinger, error) {
 	sdk, err := sdk.NewSDK()
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &AgonesPinger{host, port, timeout, sdk}, nil
+	return &ServerPinger{host, port, sdk, &McPinger{Port: port, Host: host, Timeout: timeout}}, nil
 }
 
 // Pings the minecraft server and sends Health() signal to the local Agones server on localhost port 9357
 // Returns an error if the ping is unsuccessful
-func (p *AgonesPinger) HealthPing() error {
-	_, err := p.ping()
+func (p *ServerPinger) HealthPing() error {
+	_, err := p.pinger.Ping()
 
 	if err != nil {
 		return err
 	}
 
-	return p.Sdk.Health()
+	return p.sdk.Health()
 }
 
 // Pings the minecraft server and sends Ready() signal to the local Agones server on localhost port 9357
 // Returns an error if the ping is unsuccessful
-func (p *AgonesPinger) ReadyPing() error {
-	info, err := p.ping()
+func (p *ServerPinger) ReadyPing() error {
+	info, err := p.pinger.Ping()
 
 	if err != nil {
 		return err
@@ -67,34 +75,34 @@ func (p *AgonesPinger) ReadyPing() error {
 		return StartingUpErr{}
 	}
 
-	return p.Sdk.Ready()
+	return p.sdk.Ready()
 }
 
 // Pings the minecraft server and sends Health() signal to the local Agones server on localhost port 9357
 // Returns an error if the ping is unsuccessful or timeouts
-func (p *AgonesPinger) HealthPingWithTimeout() error {
-	if p.timeout == 0 {
+func (p *ServerPinger) HealthPingWithTimeout() error {
+	if p.pinger.IsTimeoutZero() {
 		return errors.New("ping timeout is set to 0s")
 	}
 
-	_, err := p.pingWithTimeout()
+	_, err := p.pinger.PingWithTimeout()
 
 	if err != nil {
 		return err
 	}
 
-	err = p.Sdk.Health()
+	err = p.sdk.Health()
 	return err
 }
 
 // Pings the minecraft server and sends Ready() signal to the local Agones server on localhost port 9357
 // Returns an error if the ping is unsuccessful or timeouts
-func (p *AgonesPinger) ReadyPingWithTimeout() error {
-	if p.timeout == 0 {
+func (p *ServerPinger) ReadyPingWithTimeout() error {
+	if p.pinger.IsTimeoutZero() {
 		return errors.New("ping timeout is set to 0s")
 	}
 
-	info, err := p.pingWithTimeout()
+	info, err := p.pinger.PingWithTimeout()
 
 	if err != nil {
 		return err
@@ -104,17 +112,10 @@ func (p *AgonesPinger) ReadyPingWithTimeout() error {
 		return StartingUpErr{}
 	}
 
-	return p.Sdk.Ready()
+	return p.sdk.Ready()
 }
 
-func (p *AgonesPinger) ping() (*mcpinger.ServerInfo, error) {
-	return mcpinger.New(p.host, p.port).Ping()
-}
-
-func (p *AgonesPinger) pingWithTimeout() (*mcpinger.ServerInfo, error) {
-	return mcpinger.NewTimed(p.host, p.port, p.timeout).Ping()
-}
-
+// Custom Error for failed pings due to server startup
 type StartingUpErr struct{}
 
 func (e StartingUpErr) Error() string {
