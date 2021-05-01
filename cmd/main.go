@@ -131,14 +131,20 @@ func retryPing(attempts uint, interval time.Duration, stop chan struct{}, p func
 }
 
 func setupSignalHandler() chan struct{} {
-	c := make(chan os.Signal, 1)
+	termC := make(chan os.Signal, 1)
+	intC := make(chan os.Signal, 1)
 	stop := make(chan struct{})
 
-	signal.Notify(c, syscall.SIGTERM)
+	signal.Notify(termC, syscall.SIGTERM)
+	signal.Notify(intC, os.Interrupt)
 
 	go func() {
-		<-c
-		logger.Info("Received SIGTERM. Terminating...")
+		select {
+		case <-termC:
+			logger.Info("Received SIGTERM. Terminating...")
+		case <-intC:
+			logger.Info("Received Interrupt. Terminating...")
+		}
 		close(stop)
 	}()
 
