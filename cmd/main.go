@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -44,12 +43,12 @@ func main() {
 	pinger, err := ping.NewTimed(host, uint16(port), timeout)
 
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatalw("Error creating ping client", "error", err)
 	}
 
 	// Startup delay before the first ping (initial-delay)
 	logger.Info("Starting up...")
-	time.Sleep(intialDelay - interval)
+	time.Sleep(intialDelay)
 
 	// Ping server until startup
 	err = pingUntilStartup(attempts, interval, pinger, stop)
@@ -58,6 +57,9 @@ func main() {
 	if err != nil {
 		logger.Fatalw("Fatal Mincraft server. Exiting...", "error", err)
 	}
+
+	// delay before next ping cycle
+	time.Sleep(interval)
 
 	// Ping infinitely or until after a series of unsuccessful pings
 	err = pingUntilFatal(attempts, interval, pinger, stop)
@@ -72,10 +74,20 @@ func main() {
 // Will also signal the local Agones server with Ready()
 // Returns an error if the pings or singaling local Agones server fails
 func pingUntilStartup(attempts uint, interval time.Duration, pinger *ping.ServerPinger, stop chan struct{}) error {
-	err := retryPing(attempts-1, interval, stop, pinger.ReadyPingWithTimeout)
+	for {
+		err := retryPing(attempts, interval, stop, pinger.ReadyPingWithTimeout)
 
-	if err != nil {
-		return err
+		if err == nil {
+			break
+		}
+
+		if _, ok := err.(ping.StartingUpErr); ok {
+			logger.Errorw("Server still starting...", "attemptsLeft", attempts, "errorMessage", err.Error())
+		} else {
+			return err
+		}
+
+		time.Sleep(interval)
 	}
 
 	logger.Info("Server ready")
@@ -93,30 +105,29 @@ func pingUntilFatal(attempts uint, interval time.Duration, pinger *ping.ServerPi
 		}
 
 		logger.Info("Server healthy")
+		time.Sleep(interval)
 	}
 }
 
 // Retry wrapper function that will retry the given ping function with the specified attempts and intervals
 // until it dosen't return an error or until all attempts have been made
 func retryPing(attempts uint, interval time.Duration, stop chan struct{}, p func() error) error {
-	ticker := time.NewTicker(interval)
-
 	for {
+
+		if err := p(); err != nil && attempts-1 > 0 {
+			logger.Errorw(fmt.Sprintf("Unsuccessful ping. retrying in %v...", interval), "attemptsLeft", attempts-1, "errorMessage", err.Error())
+			attempts--
+		} else {
+			return err
+		}
+
 		select {
 		case <-stop:
 			return nil
-		case <-ticker.C:
-
-			if err := p(); err != nil && attempts-1 > 0 {
-				logger.Errorw(fmt.Sprintf("Unsuccessful ping. retrying in %v...", interval), "attemptsLeft", attempts-1, "errorMessage", err.Error())
-				attempts--
-			} else {
-				return err
-			}
-
+		case <-time.After(interval):
 		}
-	}
 
+	}
 }
 
 func setupSignalHandler() chan struct{} {
