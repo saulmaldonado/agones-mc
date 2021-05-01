@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -31,12 +32,12 @@ func init() {
 	flag.DurationVar(&intialDelay, "initial-delay", time.Minute, "Initial startup delay before first ping")
 
 	flag.Parse()
-	zLogger, _ := zap.NewProduction()
+	zLogger, _ = zap.NewProduction()
 	logger = zLogger.Sugar()
 }
 
 func main() {
-	defer zLogger.Sync()
+	defer logger.Desugar().Sync()
 	stop := setupSignalHandler()
 
 	// Create new timed pinger
@@ -55,6 +56,9 @@ func main() {
 
 	// Exit in case of unsuccessful startup
 	if err != nil {
+		if errors.Is(err, &ProcessStopped{}) {
+			os.Exit(0)
+		}
 		logger.Fatalw("Fatal Mincraft server. Exiting...", "error", err)
 	}
 
@@ -66,6 +70,9 @@ func main() {
 
 	// Exit in case of fatal server
 	if err != nil {
+		if errors.Is(err, &ProcessStopped{}) {
+			os.Exit(0)
+		}
 		logger.Fatalw("Fatal Mincraft server. Exiting...", "error", err)
 	}
 }
@@ -73,11 +80,10 @@ func main() {
 // Pings server with the specified retries until the server returns a complete response
 // Will also signal the local Agones server with Ready()
 // Returns an error if the pings or singaling local Agones server fails
-func pingUntilStartup(attempts uint, interval time.Duration, pinger *ping.ServerPinger, stop chan struct{}) error {
+func pingUntilStartup(attempts uint, interval time.Duration, pinger *ping.ServerPinger, stop chan bool) error {
 	for {
-		err := retryPing(attempts, interval, stop, pinger.ReadyPingWithTimeout)
-
-		if err == nil {
+		var err error
+		if err = retryPing(attempts, interval, stop, pinger.ReadyPingWithTimeout); err == nil {
 			break
 		}
 
@@ -87,7 +93,12 @@ func pingUntilStartup(attempts uint, interval time.Duration, pinger *ping.Server
 			return err
 		}
 
-		time.Sleep(interval)
+		select {
+		case <-stop:
+			return &ProcessStopped{}
+		case <-time.After(interval):
+		}
+
 	}
 
 	logger.Info("Server ready")
@@ -96,7 +107,7 @@ func pingUntilStartup(attempts uint, interval time.Duration, pinger *ping.Server
 
 // Pings the server infinitely or the server fails to reposnd after a series of retries
 // Signals to local SDK that server is healthy
-func pingUntilFatal(attempts uint, interval time.Duration, pinger *ping.ServerPinger, stop chan struct{}) error {
+func pingUntilFatal(attempts uint, interval time.Duration, pinger *ping.ServerPinger, stop chan bool) error {
 	for {
 		err := retryPing(attempts, interval, stop, pinger.HealthPingWithTimeout)
 
@@ -105,35 +116,46 @@ func pingUntilFatal(attempts uint, interval time.Duration, pinger *ping.ServerPi
 		}
 
 		logger.Info("Server healthy")
-		time.Sleep(interval)
+		select {
+		case <-stop:
+			return &ProcessStopped{}
+		case <-time.After(interval):
+		}
 	}
 }
 
 // Retry wrapper function that will retry the given ping function with the specified attempts and intervals
 // until it dosen't return an error or until all attempts have been made
-func retryPing(attempts uint, interval time.Duration, stop chan struct{}, p func() error) error {
+func retryPing(attempts uint, interval time.Duration, stop chan bool, p func() error) error {
 	for {
 
-		if err := p(); err != nil && attempts-1 > 0 {
-			logger.Errorw(fmt.Sprintf("Unsuccessful ping. retrying in %v...", interval), "attemptsLeft", attempts-1, "errorMessage", err.Error())
-			attempts--
-		} else {
-			return err
+		err := p()
+		if err != nil {
+			if attempts-1 > 0 {
+				logger.Errorw(fmt.Sprintf("Unsuccessful ping. retrying in %v...", interval), "attemptsLeft", attempts-1, "errorMessage", err.Error())
+				attempts--
+			} else {
+				return err
+			}
+		}
+
+		if err == nil {
+			return nil
 		}
 
 		select {
 		case <-stop:
-			return nil
+			return &ProcessStopped{}
 		case <-time.After(interval):
 		}
 
 	}
 }
 
-func setupSignalHandler() chan struct{} {
+func setupSignalHandler() chan bool {
 	termC := make(chan os.Signal, 1)
 	intC := make(chan os.Signal, 1)
-	stop := make(chan struct{})
+	stop := make(chan bool)
 
 	signal.Notify(termC, syscall.SIGTERM)
 	signal.Notify(intC, os.Interrupt)
@@ -145,8 +167,15 @@ func setupSignalHandler() chan struct{} {
 		case <-intC:
 			logger.Info("Received Interrupt. Terminating...")
 		}
-		close(stop)
+
+		stop <- true
 	}()
 
 	return stop
+}
+
+type ProcessStopped struct{}
+
+func (e *ProcessStopped) Error() string {
+	return "process stopped"
 }
