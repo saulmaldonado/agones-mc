@@ -13,17 +13,23 @@ import (
 	"go.uber.org/zap"
 )
 
-var host string
-var port uint
-var attempts uint
-var interval time.Duration
-var timeout time.Duration
-var intialDelay time.Duration
+var (
+	host        string
+	port        uint
+	attempts    uint
+	interval    time.Duration
+	timeout     time.Duration
+	intialDelay time.Duration
+	edition     string
+)
 
-var logger *zap.SugaredLogger
-var zLogger *zap.Logger
+var (
+	logger  *zap.SugaredLogger
+	zLogger *zap.Logger
+)
 
 func init() {
+	flag.StringVar(&edition, "edition", "java", "Minecraft server edition. java or bedrock")
 	flag.StringVar(&host, "host", "localhost", "Minecraft server host")
 	flag.UintVar(&port, "port", 25565, "Minecraft server port")
 	flag.DurationVar(&interval, "interval", time.Second*10, "Server ping interval")
@@ -41,7 +47,7 @@ func main() {
 	stop := setupSignalHandler()
 
 	// Create new timed pinger
-	pinger, err := ping.NewTimed(host, uint16(port), timeout)
+	pinger, err := ping.NewTimed(host, uint16(port), timeout, edition)
 
 	if err != nil {
 		logger.Fatalw("Error creating ping client", "error", err)

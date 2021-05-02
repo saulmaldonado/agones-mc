@@ -25,6 +25,8 @@ github.com/PuerkitoBio/urlesc v0.0.0-20160726150825-5bd2802263f2/go.mod h1:uGdko
 github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578/go.mod h1:uGdkoq3SwY9Y+13GIhn11/XLaGBb4BfwItxLd5jeuXE=
 github.com/Raqbit/mc-pinger v0.1.1 h1:CPTvf8P99a4EXW82VruThxMvrFcoT/gzvD0yI2qKcRk=
 github.com/Raqbit/mc-pinger v0.1.1/go.mod h1:r2rVvqOwaYCU3rYUNeSmCiJbcX2wJkDisXH7rZsjjuM=
+github.com/ZeroErrors/go-bedrockping v1.0.0 h1:nCAkSohHa9c/Gk8klpwBueiJQHOWz2aMKgF1iOLhgko=
+github.com/ZeroErrors/go-bedrockping v1.0.0/go.mod h1:JQdyrc0ScjiSi8O0mbRxMyWQ3fnXrTgMApB/9HOmVPQ=
 github.com/agnivade/levenshtein v1.0.1/go.mod h1:CURSv5d9Uaml+FovSIICkLbAUZ9S4RqaHDIsdSBg7lM=
 github.com/ahmetb/gen-crd-api-reference-docs v0.1.1/go.mod h1:P/XzJ+c2+khJKNKABcm2biRwk2QAuwbLf8DlXuaL7WM=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=

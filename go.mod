@@ -5,6 +5,7 @@ go 1.16
 require (
 	agones.dev/agones v1.14.0
 	github.com/Raqbit/mc-pinger v0.1.1
+	github.com/ZeroErrors/go-bedrockping v1.0.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	go.uber.org/zap v1.16.0

@@ -2,10 +2,10 @@ package ping
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	sdk "agones.dev/agones/sdks/go"
-	mcpinger "github.com/Raqbit/mc-pinger"
 )
 
 // Minecraft server pinger and SDK state manager
@@ -16,23 +16,38 @@ type ServerPinger struct {
 	pinger Pinger
 }
 
+type ServerInfo struct {
+	Protocol      int32
+	Version       string
+	MaxPlayers    int32
+	OnlinePlayers int32
+}
+
 // Interface for pinger implementation
 type Pinger interface {
-	Ping() (*mcpinger.ServerInfo, error)
-	PingWithTimeout() (*mcpinger.ServerInfo, error)
+	Ping() (*ServerInfo, error)
+	PingWithTimeout() (*ServerInfo, error)
 	IsTimeoutZero() bool
 }
+
+const (
+	JavaEdition    string = "java"
+	BedrockEdition string = "bedrock"
+)
 
 // Creates a new AgonesPinger with that will ping the minecraft server at the given host and on the given port.
 // Also initializes a connection with the local Agones server on localhost port 9357.
 // Blocks until connection and handshake is made. Timesout and returns an error after 30 seconds
-func New(host string, port uint16) (*ServerPinger, error) {
+func New(host string, port uint16, edition string) (*ServerPinger, error) {
 	sdk, err := sdk.NewSDK()
 
 	if err != nil {
 		return nil, err
 	}
 
+	if strings.ToLower(edition) == "bedrock" {
+		return &ServerPinger{host, port, sdk, &BedrockPinger{Port: port, Host: host, Timeout: 0}}, nil
+	}
 	return &ServerPinger{host, port, sdk, &McPinger{Port: port, Host: host, Timeout: 0}}, nil
 }
 
@@ -40,13 +55,16 @@ func New(host string, port uint16) (*ServerPinger, error) {
 // Ping will timeout after the give timeout duration.
 // Also initializes a connection with the local Agones server on localhost port 9357.
 // Blocks until connection and handshake is made. Timesout and returns an error after 30 seconds
-func NewTimed(host string, port uint16, timeout time.Duration) (*ServerPinger, error) {
+func NewTimed(host string, port uint16, timeout time.Duration, edition string) (*ServerPinger, error) {
 	sdk, err := sdk.NewSDK()
 
 	if err != nil {
 		return nil, err
 	}
 
+	if strings.ToLower(edition) == "bedrock" {
+		return &ServerPinger{host, port, sdk, &BedrockPinger{Port: port, Host: host, Timeout: timeout}}, nil
+	}
 	return &ServerPinger{host, port, sdk, &McPinger{Port: port, Host: host, Timeout: timeout}}, nil
 }
 
@@ -71,7 +89,7 @@ func (p *ServerPinger) ReadyPing() error {
 		return err
 	}
 
-	if info.Players.Max == 0 {
+	if info.MaxPlayers == 0 {
 		return StartingUpErr{}
 	}
 
@@ -108,7 +126,7 @@ func (p *ServerPinger) ReadyPingWithTimeout() error {
 		return err
 	}
 
-	if info.Players.Max == 0 {
+	if info.MaxPlayers == 0 {
 		return StartingUpErr{}
 	}
 
