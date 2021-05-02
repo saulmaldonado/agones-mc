@@ -1,7 +1,7 @@
 apiVersion: 'agones.dev/v1'
 kind: GameServer
 metadata:
-  generateName: 'mc-server-' # Generates a unique name for GameServer and Pod
+  generateName: 'mc-bedrock-' # Generates a unique name for GameServer and Pod
 spec:
   container: mc-server # Minecraft server container name
   ports:
@@ -11,9 +11,9 @@ spec:
       # The name of the container to open the port on. Defaults to the game server container if omitted or empty.
       container: mc-server
       # the port that is being opened on the game server process
-      containerPort: 25565
-      # Minecraft uses TCP to connect players
-      protocol: TCP
+      containerPort: 19132
+      # Bedrock uses UDP to connect players
+      protocol: UDP
   # Health checking for the running game server
   health:
     # Number of seconds after the container has started before health check is initiated.
@@ -31,18 +31,20 @@ spec:
     spec:
       containers:
         - name: mc-server
-          image: itzg/minecraft-server # Minecraft server image
+          image: itzg/minecraft-bedrock-server # Minecraft bedrock server image
           imagePullPolicy: Always
-          env: # Full list of ENV variables at https://github.com/itzg/docker-minecraft-server
+          env: # Full list of ENV variables at https://github.com/itzg/docker-minecraft-bedrock-server
             - name: EULA
               value: "TRUE"
 
         - name: mc-monitor
           image: saulmaldonado/agones-mc-monitor
           args:
-            - --attempts=5 # matches spec.health.failureThreshold
+            - --attemps=5 # matches spec.health.failureThreshold
             - --initial-delay=60s # matches spec.health.initialDelaySeconds
             - --interval=10s # below spec.health.periodSecond
             - --timeout=10s # matches interval
+            - --port=19132 # matches mc-server containerPort
+            - --edition=bedrock # bedrock edition
           imagePullPolicy: Always
 
