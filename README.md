@@ -1,24 +1,3 @@
-<!--
-*** Thanks for checking out the Best-README-Template. If you have a suggestion
-*** that would make this better, please fork the repo and create a pull request
-*** or simply open an issue with the tag "enhancement".
-*** Thanks again! Now go create something AMAZING! :D
-***
-***
-***
-*** To avoid retyping too much info. Do a search and replace for the following:
-*** github_username, repo_name, twitter_handle, email, project_title, project_description
--->
-
-<!-- PROJECT SHIELDS -->
-<!--
-*** I'm using markdown "reference style" links for readability.
-*** Reference links are enclosed in brackets [ ] instead of parentheses ( ).
-*** See the bottom of this document for the declaration of the reference variables
-*** for contributors-url, forks-url, etc. This is an optional, concise syntax you may use.
-*** https://www.markdownguide.org/basic-syntax/#reference-style-links
--->
-
 [![Contributors][contributors-shield]][contributors-url]
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
@@ -78,6 +57,7 @@ This application is meant to be run as a sidecar container alongside Minecraft s
 ### Built With
 
 - [mc-pinger](https://github.com/Raqbit/mc-pinger)
+- [go-bedrockping](https://github.com/ZeroErrors/go-bedrockping)
 - [Agones Go SDK](agones.dev/agones/sdks/go)
 
 <!-- GETTING STARTED -->
@@ -98,18 +78,21 @@ This is an example of how to list things you need to use the software and how to
 - Agones
 
   - Set up Agones in your cluster
-  - [https://agones.dev/site/docs/installation/install-agones/yaml/](https://agones.dev/site/docs/installation/install-agones/yaml/)
+  - [https://agones.dev/site/docs/installation/install-agones/](https://agones.dev/site/docs/installation/install-agones/)
 
 - Minecraft Server
-  - You'll need a container to run the Minecraft server. Highly recommend using [itzg/docker-minecraft-server](https://github.com/itzg/docker-minecraft-server)
+  - Compatible with Java and Bedrock editions
+  - You'll need a container to run the Minecraft server. Highly recommend using [itzg/docker-minecraft-server](https://github.com/itzg/docker-minecraft-server) or [itzg/minecraft-bedrock-server](https://github.com/itzg/docker-minecraft-bedrock-server)
 
 ### Installation
 
-#### Download from Docker Hub
+#### Create a new Minecraft GameServer
 
 ```sh
-docker pull saulmaldonado/agones-mc-monitor
+kubectl create -f example/mc-server.yml
 ```
+
+[Full GameServer specification example](./example/mc-server.yml)
 
 <!-- USAGE EXAMPLES -->
 
@@ -137,27 +120,39 @@ template:
         imagePullPolicy: Always
 ```
 
-#### [Full GameServer specification example](./example/mc-server.yml)
+[Full Java GameServer specification example](./example/mc-server.yml)
+
+[Full Bedrock GameServer specification example](./example/mc-bedrock-server.yml)
 
 ### Run Locally with Docker
+
+Run alongside a Minecraft server and an [Agones SDK sidecar](https://agones.dev/site/docs/guides/client-sdks/local/) in the same network
 
 ```sh
 docker run -it --rm saulmaldonado/agones-mc-monitor
 ```
 
-Flags:
+### Flags
 
 ```
   --attempts uint
         Ping attempt limit. Process will end after failing the last attempt (default 5)
+
+  --edition string
+      Minecraft server edition. java or bedrock (default "java")
+
   --host string
         Minecraft server host (default "localhost")
+
   --initial-delay duration
         Initial startup delay before first ping (default 1m0s)
+
   --interval duration
         Server ping interval (default 10s)
+
   --port uint
         Minecraft server port (default 25565)
+
   --timeout duration
         Ping timeout (default 10s)
 ```
@@ -176,9 +171,9 @@ Contributions are what make the open source community such an amazing place to b
 
 1. Fork the Project
 2. Clone the Project
-3. Create your Feature or Fix Branch (`git checkout -b (feat | fix)/AmazingFeature/Fix`)
-4. Commit your Changes (`git commit -m 'Add some AmazingFeature/Fix'`)
-5. Push to the Branch (`git push origin (feat | fix)/AmazingFeature`)
+3. Create your Feature or Fix Branch (`git checkout -b (feat|fix)/AmazingFeatureOrFix`)
+4. Commit your Changes (`git commit -m 'Add some AmazingFeatureOrFix'`)
+5. Push to the Branch (`git push origin (feat|fix)/AmazingFeatureOrFix`)
 6. Open a Pull Request
 
 ### Build from source
@@ -226,7 +221,9 @@ Distributed under the MIT License. See [LICENSE](./LICENSE) for more information
 ## Acknowledgements
 
 - [Raqbit/mc-pinger](https://github.com/Raqbit/mc-pinger)
+- [ZeroErrors/go-bedrockping](https://github.com/ZeroErrors/go-bedrockping)
 - [itzg/docker-minecraft-server](https://github.com/itzg/docker-minecraft-server)
+- [itzg/minecraft-bedrock-server](https://github.com/itzg/docker-minecraft-bedrock-server)
 
 ## Author
 
