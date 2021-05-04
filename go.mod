@@ -7,6 +7,7 @@ require (
 	github.com/Raqbit/mc-pinger v0.1.1
 	github.com/ZeroErrors/go-bedrockping v1.0.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
+	github.com/james4k/rcon v0.0.0-20210222224819-34a67ca2b2d6
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/spf13/cobra v1.1.3
 	go.uber.org/zap v1.16.0
