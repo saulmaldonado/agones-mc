@@ -40,6 +40,7 @@ spec:
         - name: mc-monitor
           image: saulmaldonado/agones-mc-monitor
           args:
+            - monitor
             - --attempts=5 # matches spec.health.failureThreshold
             - --initial-delay=60s # matches spec.health.initialDelaySeconds
             - --interval=10s # below spec.health.periodSecond
