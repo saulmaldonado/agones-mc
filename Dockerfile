@@ -1,9 +1,16 @@
-FROM golang:alpine3.13 AS build
-WORKDIR /agones-mc-monitor/
+FROM golang:1.16.3 as build
+
+WORKDIR /agones-mc/
+
+COPY go.mod .
+COPY go.sum .
+RUN go mod download
+
 COPY . .
-RUN CGO_ENABLED=0 go build -o ./agones-mc-monitor ./cmd/main.go
+RUN CGO_ENABLED=0 go build -o ./build/agones-mc main.go
 
 FROM scratch
-WORKDIR /agones-mc-monitor/
-COPY --from=build /agones-mc-monitor/agones-mc-monitor .
-ENTRYPOINT [ "./agones-mc-monitor" ]
+WORKDIR /agones-mc/
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=build /agones-mc/build/agones-mc .
+ENTRYPOINT [ "./agones-mc" ]

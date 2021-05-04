@@ -1,15 +1,15 @@
-package main
+package cmd
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	ping "github.com/saulmaldonado/agones-mc-monitor/pkg/ping"
+	ping "github.com/saulmaldonado/agones-mc/pkg/ping"
+	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
 
@@ -28,21 +28,30 @@ var (
 	zLogger *zap.Logger
 )
 
-func init() {
-	flag.StringVar(&edition, "edition", "java", "Minecraft server edition. java or bedrock")
-	flag.StringVar(&host, "host", "localhost", "Minecraft server host")
-	flag.UintVar(&port, "port", 25565, "Minecraft server port")
-	flag.DurationVar(&interval, "interval", time.Second*10, "Server ping interval")
-	flag.UintVar(&attempts, "attempts", 5, "Ping attempt limit. Process will end after failing the last attempt")
-	flag.DurationVar(&timeout, "timeout", interval, "Ping timeout")
-	flag.DurationVar(&intialDelay, "initial-delay", time.Minute, "Initial startup delay before first ping")
-
-	flag.Parse()
-	zLogger, _ = zap.NewProduction()
-	logger = zLogger.Sugar()
+var monitorCmd = cobra.Command{
+	Use:   "monitor",
+	Short: "Agones minecraft server monitor",
+	Long:  "Monitor process thats pings a minecraft server and reports statues to a local Agones SDK server",
+	Run:   RunMonitor,
 }
 
-func main() {
+func init() {
+	monitorCmd.PersistentFlags().StringVar(&edition, "edition", "java", "Minecraft server edition. java or bedrock")
+	monitorCmd.PersistentFlags().StringVar(&host, "host", "localhost", "Minecraft server host")
+	monitorCmd.PersistentFlags().UintVar(&port, "port", 25565, "Minecraft server port")
+	monitorCmd.PersistentFlags().DurationVar(&interval, "interval", time.Second*10, "Server ping interval")
+	monitorCmd.PersistentFlags().UintVar(&attempts, "attempts", 5, "Ping attempt limit. Process will end after failing the last attempt")
+	monitorCmd.PersistentFlags().DurationVar(&timeout, "timeout", interval, "Ping timeout")
+	monitorCmd.PersistentFlags().DurationVar(&intialDelay, "initial-delay", time.Minute, "Initial startup delay before first ping")
+
+	zLogger, _ = zap.NewProduction()
+	logger = zLogger.Sugar()
+
+	RootCmd.AddCommand(&monitorCmd)
+}
+
+// Main monitor function
+func RunMonitor(cmd *cobra.Command, args []string) {
 	defer logger.Desugar().Sync()
 	stop := setupSignalHandler()
 

@@ -1,4 +1,4 @@
-module github.com/saulmaldonado/agones-mc-monitor
+module github.com/saulmaldonado/agones-mc
 
 go 1.16
 
@@ -8,11 +8,11 @@ require (
 	github.com/ZeroErrors/go-bedrockping v1.0.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/spf13/cobra v1.1.3
 	go.uber.org/zap v1.16.0
 	golang.org/x/mod v0.4.2 // indirect
 	golang.org/x/net v0.0.0-20210410081132-afb366fc7cd1 // indirect
 	golang.org/x/sys v0.0.0-20210426230700-d19ff857e887 // indirect
 	google.golang.org/genproto v0.0.0-20210429181445-86c259c2b4ab // indirect
 	google.golang.org/grpc v1.37.0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
