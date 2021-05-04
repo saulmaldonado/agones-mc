@@ -14,6 +14,9 @@ build:
 build.docker:
 	docker build --rm --tag $(IMAGE):$(VERSION) --build-arg VERSION=$(VERSION) --build-arg ARCH=$(ARCH) .
 
+docker-compose.monitor:
+	docker-compose -f monitor.docker-compose.yml up
+
 clean:
 	@rm -rf build
 

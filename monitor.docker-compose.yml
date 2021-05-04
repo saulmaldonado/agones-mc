@@ -1,0 +1,20 @@
+version: '3.9'
+services:
+  agones-mc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    network_mode: host
+    command: monitor
+
+  sdk:
+    build:
+      context: .
+      dockerfile: Dockerfile.sdk
+    network_mode: host
+
+  minecraft:
+    image: itzg/minecraft-server
+    environment:
+      EULA: 'TRUE'
+    network_mode: host

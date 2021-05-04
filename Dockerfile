@@ -1,7 +1,5 @@
 FROM golang:1.16.3 as build
 
-ARG ARCH
-
 WORKDIR /agones-mc/
 
 COPY go.mod .

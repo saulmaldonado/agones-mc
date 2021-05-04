@@ -1,0 +1,5 @@
+FROM alpine:3.13
+
+COPY sdk-server.linux.amd64 .
+
+CMD ./sdk-server.linux.amd64 --local
