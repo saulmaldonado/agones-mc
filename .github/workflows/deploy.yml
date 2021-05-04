@@ -17,12 +17,12 @@ jobs:
       uses: actions/setup-go@v2
       with:
         go-version: 1.16.3
-    
+
     - name: Docker meta
       id: meta
       uses: crazy-max/ghaction-docker-meta@v2
-      with: 
-        images: saulmaldonado/agones-mc-monitor
+      with:
+        images: saulmaldonado/agones-mc
         flavor: |
           latest=true
         tags: |
@@ -34,13 +34,13 @@ jobs:
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
-    
+
     - name: Build and push
       uses: docker/build-push-action@v2
       with:
         context: .
         push: true
         tags: ${{ steps.meta.outputs.tags }}
-        
-    
-      
+
+
+
