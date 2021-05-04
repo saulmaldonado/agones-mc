@@ -6,19 +6,19 @@
 <!-- PROJECT LOGO -->
 <br />
 <p align="center">
-  <h3 align="center">agones-mc-monitor</h3>
+  <h3 align="center">agones-mc</h3>
 
   <p align="center">
-  Minecraft server monitor sidecar for Agones GameServers
+  Minecraft server CLI for Agones GameServers
     <br />
-    <a href="https://github.com/saulmaldonado/agones-mc-monitor"><strong>Explore the docs »</strong></a>
+    <a href="https://github.com/saulmaldonado/agones-mc"><strong>Explore the docs »</strong></a>
     <br />
     <br />
-    <a href="https://github.com/saulmaldonado/agones-mc-monitor/tree/main/example/mc-server.yml">View Example</a>
+    <a href="https://github.com/saulmaldonado/agones-mc/tree/main/example/mc-server.yml">View Example</a>
     ·
-    <a href="https://github.com/saulmaldonado/agones-mc-monitor/issues">Report Bug</a>
+    <a href="https://github.com/saulmaldonado/agones-mc/issues">Report Bug</a>
     ·
-    <a href="https://github.com/saulmaldonado/agones-mc-monitor/issues">Request Feature</a>
+    <a href="https://github.com/saulmaldonado/agones-mc/issues">Request Feature</a>
   </p>
 </p>
 
@@ -52,7 +52,7 @@
 
 ## About The Project
 
-This application is meant to be run as a sidecar container alongside Minecraft servers in an Agones GameServer pod. This application integrates the Agones SDK with the Minecraft server and assists with lifecycle management such as health checking, allocations, and shutdowns.
+This application was built to run as a sidecar container alongside Minecraft server in an Agones GameServer Pod to integrate it with the Agones SDK and assist with lifecycle management, health checking, world loading and backup, and configuration editing.
 
 ### Built With
 
@@ -64,11 +64,7 @@ This application is meant to be run as a sidecar container alongside Minecraft s
 
 ## Getting Started
 
-To get a copy up and running follow these steps.
-
 ### Prerequisites
-
-This is an example of how to list things you need to use the software and how to install them.
 
 - Kubernetes
 
@@ -86,7 +82,7 @@ This is an example of how to list things you need to use the software and how to
 
 ### Installation
 
-#### Create a new Minecraft GameServer
+#### Create a new Minecraft GameServer With Sidecar
 
 ```sh
 kubectl create -f example/mc-server.yml
@@ -100,7 +96,7 @@ kubectl create -f example/mc-server.yml
 
 ### Agones GameServer
 
-A GameServer requires a game server container. This will be the Mincraft server container. Every GameServer also contains the an sdkServer that will report lifecycle changes to the Agones controller. To signal Minecraft server lifecycle updates, a seperate application integrated with the Agones SDK needs to ping the Minecraft server and report lifecycle updates to the sdkServer.
+A Minecraft server container will serve as the GameServer container. Every GameServer Pod also contains the an sdkServer that will report lifecycle changes to the Agones controller. To signal Minecraft server lifecycle updates, a seperate application integrated with the Agones SDK will ping the Minecraft server and report lifecycle updates to the sdkServer.
 
 #### GameServer Pod template example
 
@@ -116,7 +112,9 @@ template:
             value: 'TRUE'
 
       - name: mc-monitor
-        image: saulmaldonado/agones-mc-monitor
+        image: saulmaldonado/agones-mc
+        args:
+          - monitor
         imagePullPolicy: Always
 ```
 
@@ -126,42 +124,43 @@ template:
 
 ### Run Locally with Docker
 
-Run alongside a Minecraft server and an [Agones SDK sidecar](https://agones.dev/site/docs/guides/client-sdks/local/) in the same network
+Run an example Minecraft GameServer Pod locally with `docker-compose`
 
 ```sh
-docker run -it --rm saulmaldonado/agones-mc-monitor
+docker-compose -f monitor.docker-compose.yml up
+
+# or
+
+make docker-compose.monitor
 ```
 
 ### Flags
 
 ```
-  --attempts uint
-        Ping attempt limit. Process will end after failing the last attempt (default 5)
+Usage:
+  agones-mc monitor [flags]
 
-  --edition string
-      Minecraft server edition. java or bedrock (default "java")
+Flags:
+--attempts uint            Ping attempt limit. Process will end after failing the last attempt (default 5)
 
-  --host string
-        Minecraft server host (default "localhost")
+--edition string           Minecraft server edition. java or bedrock (default "java")
 
-  --initial-delay duration
-        Initial startup delay before first ping (default 1m0s)
+-h, --help                     help for monitor
 
-  --interval duration
-        Server ping interval (default 10s)
+--host string              Minecraft server host (default "localhost")
 
-  --port uint
-        Minecraft server port (default 25565)
+--initial-delay duration   Initial startup delay before first ping (default 1m0s)
 
-  --timeout duration
-        Ping timeout (default 10s)
+--interval duration        Server ping interval (default 10s)
+
+--port uint                Minecraft server port (default 25565)
 ```
 
 <!-- ROADMAP -->
 
 ## Roadmap
 
-See the [open issues](https://github.com/saulmaldonado/agones-mc-monitor/issues) for a list of proposed features (and known issues).
+See the [open issues](https://github.com/saulmaldonado/agones-mc/issues) for a list of proposed features (and known issues).
 
 <!-- CONTRIBUTING -->
 
@@ -181,13 +180,17 @@ Contributions are what make the open source community such an amazing place to b
 1. Clone the repo
 
    ```sh
-   git clone https://github.com/saulmaldonado/agones-mc-monitor.git
+   git clone https://github.com/saulmaldonado/agones-mc.git
    ```
 
 2. Build
 
    ```sh
-   go build -o agones-mc-monitor ./cmd/main.go
+   make build
+
+   # or
+
+   CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/agones-mc .
    ```
 
 ### Build from Dockerfile
@@ -195,19 +198,19 @@ Contributions are what make the open source community such an amazing place to b
 1. Clone the repo
 
    ```sh
-   git clone https://github.com/saulmaldonado/agones-mc-monitor.git
+   git clone https://github.com/saulmaldonado/agones-mc.git
    ```
 
 2. Build
 
    ```sh
-   docker build -t <hub-user>/agones-mc-monitor:latest .
+   docker build -t <hub-user>/agones-mc:latest .
    ```
 
 3. Push to Docker repo
 
    ```sh
-   docker push <hub-user>/agones-mc-monitor:latest
+   docker push <hub-user>/agones-mc:latest
    ```
 
 <!-- LICENSE -->
@@ -241,13 +244,13 @@ Give a ⭐️ if this project helped you!
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
 
-[contributors-shield]: https://img.shields.io/github/contributors/saulmaldonado/agones-mc-monitor.svg?style=for-the-badge
-[contributors-url]: https://github.com/saulmaldonado/agones-mc-monitor/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/saulmaldonado/agones-mc-monitor.svg?style=for-the-badge
-[forks-url]: https://github.com/saulmaldonado/agones-mc-monitor/network/members
-[stars-shield]: https://img.shields.io/github/stars/saulmaldonado/agones-mc-monitor.svg?style=for-the-badge
-[stars-url]: https://github.com/saulmaldonado/agones-mc-monitor/stargazers
-[issues-shield]: https://img.shields.io/github/issues/saulmaldonado/agones-mc-monitor.svg?style=for-the-badge
-[issues-url]: https://github.com/saulmaldonado/agones-mc-monitor/issues
-[license-shield]: https://img.shields.io/github/license/saulmaldonado/agones-mc-monitor.svg?style=for-the-badge
-[license-url]: https://github.com/saulmaldonado/agones-mc-monitor/blob/master/LICENSE.txt
+[contributors-shield]: https://img.shields.io/github/contributors/saulmaldonado/agones-mc.svg?style=for-the-badge
+[contributors-url]: https://github.com/saulmaldonado/agones-mc/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/saulmaldonado/agones-mc.svg?style=for-the-badge
+[forks-url]: https://github.com/saulmaldonado/agones-mc/network/members
+[stars-shield]: https://img.shields.io/github/stars/saulmaldonado/agones-mc.svg?style=for-the-badge
+[stars-url]: https://github.com/saulmaldonado/agones-mc/stargazers
+[issues-shield]: https://img.shields.io/github/issues/saulmaldonado/agones-mc.svg?style=for-the-badge
+[issues-url]: https://github.com/saulmaldonado/agones-mc/issues
+[license-shield]: https://img.shields.io/github/license/saulmaldonado/agones-mc.svg?style=for-the-badge
+[license-url]: https://github.com/saulmaldonado/agones-mc/blob/master/LICENSE.txt
