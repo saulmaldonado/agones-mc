@@ -21,3 +21,5 @@ vendor/
 /Godeps/
 
 sdk-server.linux.amd64
+
+.env

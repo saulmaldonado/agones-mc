@@ -5,6 +5,10 @@ COMMIT := $(shell git rev-parse --short HEAD)
 VERSION := $(shell set -o pipefail; git describe --exact-match --tags HEAD 2> /dev/null | cut -c 2- || echo ${COMMIT})
 BUILD_FLAGS ?= -v
 ARCH ?= amd64
+GOOGLE_APPLICATION_CREDENTIALS := $(HOME)/.config/gcloud/application_default_credentials.json
+
+include .env
+export
 
 .PHONY: build build.docker
 
@@ -16,6 +20,9 @@ build.docker:
 
 docker-compose.monitor:
 	docker-compose -f monitor.docker-compose.yml up
+
+docker-compose.backup:
+	docker-compose -f backup.docker-compose.yml up
 
 clean:
 	@rm -rf build
