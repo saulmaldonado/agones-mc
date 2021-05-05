@@ -35,6 +35,7 @@ func init() {
 	backupCmd.PersistentFlags().Uint("rcon-port", 25575, "Minecraft server rcon port")
 	backupCmd.PersistentFlags().String("volume", "/data", "Path to minecraft server data volume")
 	backupCmd.PersistentFlags().String("gcp-bucket-name", "", "Cloud storage bucket name for storing backups")
+	backupCmd.PersistentFlags().Duration("initial-delay", 0, "Initial delay in duration. ")
 
 	RootCmd.AddCommand(&backupCmd)
 }
@@ -43,6 +44,12 @@ func RunBackup(cmd *cobra.Command, args []string) {
 	zLogger, _ := zap.NewProduction()
 	backupLog = zLogger.Sugar().Named("agones-mc-backup")
 	defer zLogger.Sync()
+
+	dur, _ := cmd.Flags().GetDuration("initial-delay")
+	if dur > 0 {
+		backupLog.Infow("Initial delay...", "duration", dur.String())
+		time.Sleep(dur)
+	}
 
 	pw := os.Getenv("RCON_PASSWORD")
 	name := os.Getenv("NAME")
