@@ -4,13 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
-	ping "github.com/saulmaldonado/agones-mc/pkg/ping"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+
+	"github.com/saulmaldonado/agones-mc/pkg/ping"
+	"github.com/saulmaldonado/agones-mc/pkg/signal"
 )
 
 var (
@@ -53,7 +53,7 @@ func init() {
 // Main monitor function
 func RunMonitor(cmd *cobra.Command, args []string) {
 	defer logger.Desugar().Sync()
-	stop := setupSignalHandler()
+	stop := signal.SetupSignalHandler(logger)
 
 	// Create new timed pinger
 	pinger, err := ping.NewTimed(host, uint16(port), timeout, edition)
@@ -165,28 +165,6 @@ func retryPing(attempts uint, interval time.Duration, stop chan bool, p func() e
 		}
 
 	}
-}
-
-func setupSignalHandler() chan bool {
-	termC := make(chan os.Signal, 1)
-	intC := make(chan os.Signal, 1)
-	stop := make(chan bool)
-
-	signal.Notify(termC, syscall.SIGTERM)
-	signal.Notify(intC, os.Interrupt)
-
-	go func() {
-		select {
-		case <-termC:
-			logger.Info("Received SIGTERM. Terminating...")
-		case <-intC:
-			logger.Info("Received Interrupt. Terminating...")
-		}
-
-		stop <- true
-	}()
-
-	return stop
 }
 
 type ProcessStopped struct{}

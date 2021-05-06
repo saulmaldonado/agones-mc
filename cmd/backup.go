@@ -16,6 +16,7 @@ import (
 
 	"github.com/saulmaldonado/agones-mc/pkg/backup"
 	"github.com/saulmaldonado/agones-mc/pkg/backup/google"
+	"github.com/saulmaldonado/agones-mc/pkg/signal"
 )
 
 type BackupConfig struct {
@@ -72,6 +73,8 @@ func Run(cmd *cobra.Command, args []string) {
 	cfg := &BackupConfig{host, port, vol, pw, bucket, dur, name}
 
 	if cron != "" {
+		stop := signal.SetupSignalHandler(backupLog)
+
 		s := gocron.NewScheduler(time.UTC)
 
 		s.Cron(cron).Do(func() {
@@ -82,12 +85,18 @@ func Run(cmd *cobra.Command, args []string) {
 			}
 		})
 
-		s.StartBlocking()
-	} else {
-		if err := RunBackup(cfg); err != nil {
-			backupLog.Fatalw("backup failed", "serverName", cfg.ServerName)
-		}
+		s.StartAsync()
+		<-stop // SIGTERM
+		s.Clear()
+		s.Stop()
+		// attempt a final backup before terminating
 	}
+
+	if err := RunBackup(cfg); err != nil {
+		backupLog.Fatalw("backup failed", "serverName", cfg.ServerName)
+	}
+
+	backupLog.Infow("backup successful", "serverName", cfg.ServerName)
 }
 
 func RunBackup(cfg *BackupConfig) error {
