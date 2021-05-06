@@ -46,5 +46,5 @@ func (g *GoogleClient) Backup(file *os.File, buff *bytes.Buffer) error {
 }
 
 func (g *GoogleClient) Close() error {
-	return g.Close()
+	return g.client.Close()
 }

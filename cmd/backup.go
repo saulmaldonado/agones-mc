@@ -110,6 +110,7 @@ func RunBackup(cfg *BackupConfig) error {
 	cloudStorageClient, err := google.New(context.Background(), cfg.GcpBucketName)
 	if err != nil {
 		backupLog.Error(err)
+		return err
 	}
 
 	defer cloudStorageClient.Close()
@@ -120,6 +121,7 @@ func RunBackup(cfg *BackupConfig) error {
 	file, buff, err := backup.Zipit(path.Join(cfg.Volume, "world"), backupName)
 	if err != nil {
 		backupLog.Error(err)
+		return err
 	}
 
 	defer file.Close()
@@ -127,6 +129,7 @@ func RunBackup(cfg *BackupConfig) error {
 	// Backup to Google Cloud Storage
 	if err := cloudStorageClient.Backup(file, buff); err != nil {
 		backupLog.Error(err)
+		return err
 	}
 
 	return nil
