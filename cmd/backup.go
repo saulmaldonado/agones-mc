@@ -1,31 +1,38 @@
 package cmd
 
 import (
-	"archive/zip"
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"path"
-	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
+	"github.com/go-co-op/gocron"
 	"github.com/james4k/rcon"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
+	"github.com/saulmaldonado/agones-mc/pkg/backup"
 	"github.com/saulmaldonado/agones-mc/pkg/backup/google"
 )
+
+type BackupConfig struct {
+	Host          string
+	Port          uint
+	Volume        string
+	RCONPassword  string
+	GcpBucketName string
+	InitialDelay  time.Duration
+	ServerName    string
+}
 
 var backupCmd = cobra.Command{
 	Use:   "backup",
 	Short: "Saves and backsup minecraft world",
 	Long:  "backup is for saving and backup up current minecraft world",
-	Run:   RunBackup,
+	Run:   Run,
 }
 
 var backupLog *zap.SugaredLogger
@@ -35,12 +42,14 @@ func init() {
 	backupCmd.PersistentFlags().Uint("rcon-port", 25575, "Minecraft server rcon port")
 	backupCmd.PersistentFlags().String("volume", "/data", "Path to minecraft server data volume")
 	backupCmd.PersistentFlags().String("gcp-bucket-name", "", "Cloud storage bucket name for storing backups")
-	backupCmd.PersistentFlags().Duration("initial-delay", 0, "Initial delay in duration. ")
+	backupCmd.PersistentFlags().Duration("initial-delay", 0, "Initial delay in duration.")
+	backupCmd.PersistentFlags().String("backup-cron", "", "crin")
 
 	RootCmd.AddCommand(&backupCmd)
 }
 
-func RunBackup(cmd *cobra.Command, args []string) {
+func Run(cmd *cobra.Command, args []string) {
+
 	zLogger, _ := zap.NewProduction()
 	backupLog = zLogger.Sugar().Named("agones-mc-backup")
 	defer zLogger.Sync()
@@ -58,38 +67,60 @@ func RunBackup(cmd *cobra.Command, args []string) {
 	port, _ := cmd.Flags().GetUint("rcon-port")
 	vol, _ := cmd.Flags().GetString("volume")
 	bucket, _ := cmd.Flags().GetString("gcp-bucket-name")
+	cron, _ := cmd.Flags().GetString("backup-cron")
 
+	cfg := &BackupConfig{host, port, vol, pw, bucket, dur, name}
+
+	if cron != "" {
+		s := gocron.NewScheduler(time.UTC)
+
+		s.Cron(cron).Do(func() {
+			if err := RunBackup(cfg); err != nil {
+				backupLog.Errorw("backup failed", "serverName", cfg.ServerName)
+			} else {
+				backupLog.Infow("backup successful", "serverName", cfg.ServerName)
+			}
+		})
+
+		s.StartBlocking()
+	} else {
+		if err := RunBackup(cfg); err != nil {
+			backupLog.Fatalw("backup failed", "serverName", cfg.ServerName)
+		}
+	}
+}
+
+func RunBackup(cfg *BackupConfig) error {
 	// Run save-all on minecraft server to force save-all before backup
-	if err := saveAll(host, port, pw); err != nil {
-		backupLog.Error(err)
+	if err := saveAll(cfg.Host, cfg.Port, cfg.RCONPassword); err != nil {
+		backupLog.Warn(err)
 		backupLog.Warn("Skipping save-all")
 	}
 
-	backupName := fmt.Sprintf("%s-%v.zip", name, time.Now().Format(time.RFC3339))
-
-	// Create zip backup
-	file, buff, err := zipit(path.Join(vol, "world"), backupName)
+	// Authenticate and create Google Cloud Storage client
+	cloudStorageClient, err := google.New(context.Background(), cfg.GcpBucketName)
 	if err != nil {
 		backupLog.Error(err)
-		backupLog.Fatal("backup failed")
+	}
+
+	defer cloudStorageClient.Close()
+
+	backupName := fmt.Sprintf("%s-%v.zip", cfg.ServerName, time.Now().Format(time.RFC3339))
+
+	// Create zip backup
+	file, buff, err := backup.Zipit(path.Join(cfg.Volume, "world"), backupName)
+	if err != nil {
+		backupLog.Error(err)
 	}
 
 	defer file.Close()
 
-	// Authenticate and create Google Cloud Storage client
-	cloudStorageClient, err := google.New(context.Background(), bucket)
-	if err != nil {
-		backupLog.Error(err)
-		backupLog.Fatal("Error with Google Cloud Storage")
-	}
-
 	// Backup to Google Cloud Storage
 	if err := cloudStorageClient.Backup(file, buff); err != nil {
 		backupLog.Error(err)
-		backupLog.Fatal("Error with Google Cloud Storage")
 	}
 
-	backupLog.Infow("backup successful", "backupName", backupName)
+	return nil
 }
 
 func saveAll(host string, port uint, password string) error {
@@ -123,58 +154,4 @@ func saveAll(host string, port uint, password string) error {
 	backupLog.Info(res)
 
 	return nil
-}
-
-func zipit(source, target string) (*os.File, *bytes.Buffer, error) {
-	zipfile, err := os.Create(target)
-	buff := &bytes.Buffer{}
-	if err != nil {
-		return nil, nil, err
-	}
-
-	archive := zip.NewWriter(io.MultiWriter(zipfile, buff))
-	defer archive.Close()
-
-	var baseDir string
-	err = filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		header, err := zip.FileInfoHeader(info)
-		if err != nil {
-			return err
-		}
-
-		if baseDir != "" {
-			header.Name = filepath.Join(baseDir, strings.TrimPrefix(path, source))
-		}
-
-		if info.IsDir() {
-			header.Name += "/"
-		} else {
-			header.Method = zip.Deflate
-		}
-
-		writer, err := archive.CreateHeader(header)
-		if err != nil {
-			return err
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-
-		file, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-
-		defer file.Close()
-
-		_, err = io.Copy(writer, file)
-		return err
-	})
-
-	return zipfile, buff, err
 }

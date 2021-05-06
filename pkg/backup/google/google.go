@@ -44,3 +44,7 @@ func (g *GoogleClient) Backup(file *os.File, buff *bytes.Buffer) error {
 
 	return nil
 }
+
+func (g *GoogleClient) Close() error {
+	return g.Close()
+}

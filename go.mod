@@ -7,6 +7,7 @@ require (
 	cloud.google.com/go/storage v1.15.0
 	github.com/Raqbit/mc-pinger v0.1.1
 	github.com/ZeroErrors/go-bedrockping v1.0.0
+	github.com/go-co-op/gocron v1.5.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/james4k/rcon v0.0.0-20210222224819-34a67ca2b2d6
 	github.com/pkg/errors v0.9.1 // indirect
