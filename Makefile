@@ -7,7 +7,7 @@ BUILD_FLAGS ?= -v
 ARCH ?= amd64
 GOOGLE_APPLICATION_CREDENTIALS := $(HOME)/.config/gcloud/application_default_credentials.json
 
-include .env
+-include .env
 export
 
 .PHONY: build build.docker
