@@ -12,6 +12,7 @@ services:
 
     environment:
       GOOGLE_APPLICATION_CREDENTIALS: /root/.config/gcloud/application_default_credentials.json
+      NAME: ${NAME}
     volumes:
       - mc-world:/data
       - ${GOOGLE_APPLICATION_CREDENTIALS}:/root/.config/gcloud/application_default_credentials.json

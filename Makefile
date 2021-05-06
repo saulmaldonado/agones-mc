@@ -6,17 +6,24 @@ VERSION := $(shell set -o pipefail; git describe --exact-match --tags HEAD 2> /d
 BUILD_FLAGS ?= -v
 ARCH ?= amd64
 GOOGLE_APPLICATION_CREDENTIALS := $(HOME)/.config/gcloud/application_default_credentials.json
+NAME := mc-server
 
 -include .env
 export
 
-.PHONY: build build.docker
+.PHONY: build build.docker build.docker-compose.monitor build.docker-compose.backup
 
 build:
 	CGO_ENABLED=0 GOOS=linux GOARCH=$(ARCH) go build -o build/$(BINARY) $(BUILD_FLAGS) .
 
 build.docker:
 	docker build --rm --tag $(IMAGE):$(VERSION) --build-arg VERSION=$(VERSION) --build-arg ARCH=$(ARCH) .
+
+build.docker-compose.monitor:
+	docker-compose -f monitor.docker-compose.yml build
+
+build.docker-compose.backup:
+	docker-compose -f backup.docker-compose.yml build
 
 docker-compose.monitor:
 	docker-compose -f monitor.docker-compose.yml up
@@ -28,6 +35,12 @@ clean:
 	@rm -rf build
 
 clean.docker: stop delete-containers delete-images
+
+clean.docker-compose.backup:
+	docker-compose -f backup.docker-compose.yml rm
+
+clean.docker-compose.monitor:
+	docker-compose -f monitor.docker-compose.yml rm
 
 stop:
 	-docker container stop $(shell docker container ls -q --filter name=$(BINARY))
