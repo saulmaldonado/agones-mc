@@ -2,7 +2,6 @@ package backup
 
 import (
 	"archive/zip"
-	"bytes"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,18 +11,19 @@ import (
 const ZipContentType string = "application/zip"
 
 type BackupClient interface {
-	Backup(*os.File, *bytes.Buffer) error
+	Backup(file *os.File) error
 	Close() error
 }
 
-func Zipit(source, target string) (*os.File, *bytes.Buffer, error) {
+func Zipit(source, target string) error {
 	zipfile, err := os.Create(target)
-	buff := &bytes.Buffer{}
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
-	archive := zip.NewWriter(io.MultiWriter(zipfile, buff))
+	defer zipfile.Close()
+
+	archive := zip.NewWriter(zipfile)
 	defer archive.Close()
 
 	var baseDir string
@@ -67,5 +67,5 @@ func Zipit(source, target string) (*os.File, *bytes.Buffer, error) {
 		return err
 	})
 
-	return zipfile, buff, err
+	return err
 }

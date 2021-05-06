@@ -118,7 +118,13 @@ func RunBackup(cfg *BackupConfig) error {
 	backupName := fmt.Sprintf("%s-%v.zip", cfg.ServerName, time.Now().Format(time.RFC3339))
 
 	// Create zip backup
-	file, buff, err := backup.Zipit(path.Join(cfg.Volume, "world"), backupName)
+	err = backup.Zipit(path.Join(cfg.Volume, "world"), backupName)
+	if err != nil {
+		backupLog.Error(err)
+		return err
+	}
+
+	file, err := os.Open(backupName)
 	if err != nil {
 		backupLog.Error(err)
 		return err
@@ -127,10 +133,12 @@ func RunBackup(cfg *BackupConfig) error {
 	defer file.Close()
 
 	// Backup to Google Cloud Storage
-	if err := cloudStorageClient.Backup(file, buff); err != nil {
+	if err := cloudStorageClient.Backup(file); err != nil {
 		backupLog.Error(err)
 		return err
 	}
+
+	os.Remove(backupName)
 
 	return nil
 }

@@ -1,7 +1,6 @@
 package google
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"os"
@@ -25,7 +24,7 @@ func New(ctx context.Context, bucketName string) (backup.BackupClient, error) {
 	return &GoogleClient{client, bucketName}, nil
 }
 
-func (g *GoogleClient) Backup(file *os.File, buff *bytes.Buffer) error {
+func (g *GoogleClient) Backup(file *os.File) error {
 	ctx := context.Background()
 	bkt := g.client.Bucket(g.bktName)
 
@@ -34,7 +33,7 @@ func (g *GoogleClient) Backup(file *os.File, buff *bytes.Buffer) error {
 	w := obj.NewWriter(ctx)
 	w.ContentType = backup.ZipContentType
 
-	if _, err := io.Copy(w, buff); err != nil {
+	if _, err := io.Copy(w, file); err != nil {
 		return err
 	}
 
