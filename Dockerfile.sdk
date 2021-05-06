@@ -1,5 +1,8 @@
 FROM alpine:3.13
 
-COPY sdk-server.linux.amd64 .
+RUN apk add --no-cache unzip curl && curl -OL https://github.com/googleforgames/agones/releases/download/v1.14.0/agonessdk-server-1.14.0.zip \
+  && unzip agonessdk-server-1.14.0.zip \
+  && rm sdk-server.darwin.amd64 sdk-server.windows.amd64.exe agonessdk-server-1.14.0.zip \
+  && apk del unzip curl
 
 CMD ./sdk-server.linux.amd64 --local
