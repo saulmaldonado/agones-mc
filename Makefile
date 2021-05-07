@@ -7,6 +7,7 @@ BUILD_FLAGS ?= -v
 ARCH ?= amd64
 GOOGLE_APPLICATION_CREDENTIALS := $(HOME)/.config/gcloud/application_default_credentials.json
 NAME := mc-server
+BACKUP := mc-server-backup.zip
 
 -include .env
 export
@@ -31,6 +32,9 @@ docker-compose.monitor:
 docker-compose.backup:
 	docker-compose -f backup.docker-compose.yml up
 
+docker-compose.load:
+	docker-compose -f load.docker-compose.yml up
+
 clean:
 	@rm -rf build
 
@@ -41,6 +45,9 @@ clean.docker-compose.backup:
 
 clean.docker-compose.monitor:
 	docker-compose -f monitor.docker-compose.yml rm
+
+clean.docker-compose.load:
+	docker-compose -f load.docker-compose.yml rm
 
 stop:
 	-docker container stop $(shell docker container ls -q --filter name=$(BINARY))
