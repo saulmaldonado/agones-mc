@@ -11,6 +11,7 @@ import (
 const ZipContentType string = "application/zip"
 
 type BackupClient interface {
+	Load(name, targetVol string) error
 	Backup(file *os.File) error
 	Close() error
 }
