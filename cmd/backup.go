@@ -29,14 +29,62 @@ type BackupConfig struct {
 	ServerName    string
 }
 
+var backupLog *zap.SugaredLogger
+
 var backupCmd = cobra.Command{
 	Use:   "backup",
 	Short: "Saves and backsup minecraft world",
 	Long:  "backup is for saving and backup up current minecraft world",
-	Run:   Run,
-}
+	Run: func(cmd *cobra.Command, args []string) {
+		zLogger, _ := zap.NewProduction()
+		backupLog = zLogger.Sugar().Named("agones-mc-backup")
+		defer zLogger.Sync()
 
-var backupLog *zap.SugaredLogger
+		dur, _ := cmd.Flags().GetDuration("initial-delay")
+		if dur > 0 {
+			backupLog.Infow("Initial delay...", "duration", dur.String())
+			time.Sleep(dur)
+		}
+
+		pw := os.Getenv("RCON_PASSWORD")
+		name := os.Getenv("NAME")
+
+		host, _ := cmd.Flags().GetString("host")
+		port, _ := cmd.Flags().GetUint("rcon-port")
+		vol, _ := cmd.Flags().GetString("volume")
+		bucket, _ := cmd.Flags().GetString("gcp-bucket-name")
+		cron, _ := cmd.Flags().GetString("backup-cron")
+
+		cfg := &BackupConfig{host, port, vol, pw, bucket, dur, name}
+
+		if cron != "" {
+			stop := signal.SetupSignalHandler(backupLog)
+
+			s := gocron.NewScheduler(time.UTC)
+
+			s.Cron(cron).Do(func() {
+				if err := RunBackup(cfg); err != nil {
+					backupLog.Errorw("backup failed", "serverName", cfg.ServerName)
+				} else {
+					backupLog.Infow("backup successful", "serverName", cfg.ServerName)
+				}
+			})
+
+			s.StartAsync()
+			<-stop // SIGTERM
+			s.Clear()
+			s.Stop()
+			// attempt a final backup before terminating
+		}
+
+		if err := RunBackup(cfg); err != nil {
+			backupLog.Fatalw("backup failed", "serverName", cfg.ServerName)
+		}
+
+		backupLog.Infow("backup successful", "serverName", cfg.ServerName)
+
+	},
+}
 
 func init() {
 	backupCmd.PersistentFlags().String("host", "localhost", "Minecraft server host")
@@ -47,56 +95,6 @@ func init() {
 	backupCmd.PersistentFlags().String("backup-cron", "", "crin")
 
 	RootCmd.AddCommand(&backupCmd)
-}
-
-func Run(cmd *cobra.Command, args []string) {
-
-	zLogger, _ := zap.NewProduction()
-	backupLog = zLogger.Sugar().Named("agones-mc-backup")
-	defer zLogger.Sync()
-
-	dur, _ := cmd.Flags().GetDuration("initial-delay")
-	if dur > 0 {
-		backupLog.Infow("Initial delay...", "duration", dur.String())
-		time.Sleep(dur)
-	}
-
-	pw := os.Getenv("RCON_PASSWORD")
-	name := os.Getenv("NAME")
-
-	host, _ := cmd.Flags().GetString("host")
-	port, _ := cmd.Flags().GetUint("rcon-port")
-	vol, _ := cmd.Flags().GetString("volume")
-	bucket, _ := cmd.Flags().GetString("gcp-bucket-name")
-	cron, _ := cmd.Flags().GetString("backup-cron")
-
-	cfg := &BackupConfig{host, port, vol, pw, bucket, dur, name}
-
-	if cron != "" {
-		stop := signal.SetupSignalHandler(backupLog)
-
-		s := gocron.NewScheduler(time.UTC)
-
-		s.Cron(cron).Do(func() {
-			if err := RunBackup(cfg); err != nil {
-				backupLog.Errorw("backup failed", "serverName", cfg.ServerName)
-			} else {
-				backupLog.Infow("backup successful", "serverName", cfg.ServerName)
-			}
-		})
-
-		s.StartAsync()
-		<-stop // SIGTERM
-		s.Clear()
-		s.Stop()
-		// attempt a final backup before terminating
-	}
-
-	if err := RunBackup(cfg); err != nil {
-		backupLog.Fatalw("backup failed", "serverName", cfg.ServerName)
-	}
-
-	backupLog.Infow("backup successful", "serverName", cfg.ServerName)
 }
 
 func RunBackup(cfg *BackupConfig) error {
