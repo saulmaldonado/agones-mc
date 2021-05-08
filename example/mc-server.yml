@@ -32,13 +32,16 @@ spec:
       containers:
         - name: mc-server
           image: itzg/minecraft-server # Minecraft server image
-          imagePullPolicy: Always
           env: # Full list of ENV variables at https://github.com/itzg/docker-minecraft-server
             - name: EULA
               value: "TRUE"
+          imagePullPolicy: Always
+          volumeMounts:
+            - mountPath: /data
+              name: world-vol
 
         - name: mc-monitor
-          image: saulmaldonado/agones-mc-monitor
+          image: saulmaldonado/agones-mc
           args:
             - monitor
             - --attempts=5 # matches spec.health.failureThreshold
@@ -47,3 +50,24 @@ spec:
             - --timeout=10s # matches interval
           imagePullPolicy: Always
 
+
+        - name: mc-backup
+          image: saulmaldonado/agones-mc
+          args:
+            - backup
+            - --gcp-bucket-name=agones-minecraft-mc-worlds
+            - --backup-cron=*/5 * * * *
+            - --initial-delay=60s
+          env:
+            - name: NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          imagePullPolicy: Always
+          volumeMounts:
+            - mountPath: /data
+              name: world-vol
+
+      volumes:
+        - name: world-vol
+          emptyDir: {}
