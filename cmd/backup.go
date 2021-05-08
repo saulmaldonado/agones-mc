@@ -27,6 +27,7 @@ type BackupConfig struct {
 	GcpBucketName string
 	InitialDelay  time.Duration
 	ServerName    string
+	Edition       string
 }
 
 var backupLog *zap.SugaredLogger
@@ -54,8 +55,9 @@ var backupCmd = cobra.Command{
 		vol, _ := cmd.Flags().GetString("volume")
 		bucket, _ := cmd.Flags().GetString("gcp-bucket-name")
 		cron, _ := cmd.Flags().GetString("backup-cron")
+		ed, _ := cmd.Flags().GetString("edition")
 
-		cfg := &BackupConfig{host, port, vol, pw, bucket, dur, name}
+		cfg := &BackupConfig{host, port, vol, pw, bucket, dur, name, ed}
 
 		if cron != "" {
 			stop := signal.SetupSignalHandler(backupLog)
@@ -92,7 +94,8 @@ func init() {
 	backupCmd.PersistentFlags().String("volume", "/data", "Path to minecraft server data volume")
 	backupCmd.PersistentFlags().String("gcp-bucket-name", "", "Cloud storage bucket name for storing backups")
 	backupCmd.PersistentFlags().Duration("initial-delay", 0, "Initial delay in duration.")
-	backupCmd.PersistentFlags().String("backup-cron", "", "crin")
+	backupCmd.PersistentFlags().String("backup-cron", "", "crontab for the backup job")
+	backupCmd.PersistentFlags().String("edition", "java", "minecraft server edition")
 
 	RootCmd.AddCommand(&backupCmd)
 }
@@ -115,8 +118,15 @@ func RunBackup(cfg *BackupConfig) error {
 
 	backupName := fmt.Sprintf("%s-%v.zip", cfg.ServerName, time.Now().Format(time.RFC3339))
 
+	var worldPath string
+	if cfg.Edition == "bedrock" {
+		worldPath = path.Join(cfg.Volume, "worlds", "Bedrock level")
+	} else {
+		worldPath = path.Join(cfg.Volume, "world")
+	}
+
 	// Create zip backup
-	err = backup.Zipit(path.Join(cfg.Volume, "world"), backupName)
+	err = backup.Zipit(worldPath, backupName)
 	if err != nil {
 		backupLog.Error(err)
 		return err
