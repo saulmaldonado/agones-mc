@@ -4,10 +4,14 @@ import (
 	"context"
 	"os"
 
-	"github.com/saulmaldonado/agones-mc/pkg/backup/google"
+	sdk "agones.dev/agones/sdks/go"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+
+	"github.com/saulmaldonado/agones-mc/pkg/backup/google"
 )
+
+const BackupAnnotataion = "agones.dev/sdk-backup"
 
 var loadLog *zap.SugaredLogger
 
@@ -27,12 +31,22 @@ var loadCmd = cobra.Command{
 		loadLog = zLogger.Sugar().Named("agones-mc-load")
 		defer zLogger.Sync()
 
-		backup := os.Getenv("BACKUP")
 		name := os.Getenv("NAME")
 
-		if backup == "" {
-			loadLog.Infow("No backup annotation. Creating a new world.")
-			return
+		agones, err := sdk.NewSDK()
+		if err != nil {
+			loadLog.Fatalw("error connecting to Agones SDK", "serverName", name)
+		}
+
+		gs, err := agones.GameServer()
+		if err != nil {
+			loadLog.Fatalw("error getting GameServer config", "serverName", name)
+		}
+
+		backup, ok := gs.ObjectMeta.Annotations[BackupAnnotataion]
+		if !ok {
+			loadLog.Infow("no backup annotation. Creating a new world.")
+			return // exit without error
 		}
 
 		bkt, _ := cmd.Flags().GetString("gcp-bucket-name")
