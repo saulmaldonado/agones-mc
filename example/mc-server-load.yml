@@ -1,3 +1,4 @@
+# Server loaded with an archived world
 apiVersion: 'agones.dev/v1'
 kind: GameServer
 metadata:
@@ -24,13 +25,38 @@ spec:
     # Minimum consecutive failures for the health probe to be considered failed after having succeeded.
     failureThreshold: 5
   template:
+    metadata:
+      annotations:
+        agones.dev/sdk-backup: mc-server-qfsgr-2021-05-09T09:35:00Z.zip # mc-load will download this archived world from storage
     spec:
+      initContainers:
+        - name: mc-load
+          image: saulmaldonado/agones-mc # backup
+          args:
+            - load
+            - --gcp-bucket-name=agones-minecraft-mc-worlds # GCP Cloud storage bucket name for world archives
+          env:
+            - name: NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name # GameServer name ref for logging
+            - name: BACKUP
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['agones.dev/sdk-backup'] # ref to agones.dev/sdk-backup to download archived world
+          imagePullPolicy: Always
+          volumeMounts:
+            - mountPath: /data # shared vol with mc-server
+              name: world-vol
+
       containers:
         - name: mc-server
           image: itzg/minecraft-server # Minecraft Java server image
           env: # Full list of ENV variables at https://github.com/itzg/docker-minecraft-server
             - name: EULA
               value: "TRUE"
+            - name: WORLD
+              value: /data/world.zip # path to archived world in shared vol. mc-load initcontainer will download and place the archive at /data/world.zip
           volumeMounts:
             - mountPath: /data # shared vol with mc-load and mc-backup
               name: world-vol
@@ -56,7 +82,7 @@ spec:
             - name: NAME
               valueFrom:
                 fieldRef:
-                  fieldPath: metadata.name # GameServer ref for naming backup zip files
+                  fieldPath: metadata.name # GameServer ref for nameing backup zip files
             - name: RCON_PASSWORD
               value: minecraft # default rcon password. If provided RCON connection will be used to execute 'save-all' before a backup job.
               # Change the rcon password when exposing RCON port outside the pod
