@@ -7,7 +7,6 @@ BUILD_FLAGS ?= -v
 ARCH ?= amd64
 GOOGLE_APPLICATION_CREDENTIALS := $(HOME)/.config/gcloud/application_default_credentials.json
 NAME := mc-server
-BACKUP := mc-server-backup.zip
 
 -include .env
 export
@@ -34,6 +33,12 @@ docker-compose.backup:
 
 docker-compose.load:
 	docker-compose -f load.docker-compose.yml up
+
+docker-compose.bedrock.backup:
+	docker-compose -f backup.bedrock.docker-compose.yml up
+
+docker-compose.bedrock.load:
+	docker-compose -f load.bedrock.docker-compose.yml up
 
 clean:
 	@rm -rf build
