@@ -1,3 +1,4 @@
+# Server loaded with an archived world
 apiVersion: 'agones.dev/v1'
 kind: GameServer
 metadata:
@@ -24,14 +25,39 @@ spec:
     # Minimum consecutive failures for the health probe to be considered failed after having succeeded.
     failureThreshold: 5
   template:
+    metadata:
+      annotations:
+        agones.dev/sdk-backup: mc-bedrock-6grm6-2021-05-10T04:04:56Z.zip # mc-load will download this archived world from storage
     spec:
+      initContainers:
+        - name: mc-load
+          image: saulmaldonado/agones-mc # backup
+          args:
+            - load
+            - --gcp-bucket-name=agones-minecraft-mc-worlds # GCP Cloud storage bucket name for world archives
+          env:
+            - name: NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name # GameServer name ref for logging
+            - name: BACKUP
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['agones.dev/sdk-backup'] # ref to agones.dev/sdk-backup to download archived world
+          imagePullPolicy: Always
+          volumeMounts:
+            - mountPath: /data # shared vol with mc-server
+              name: world-vol
+
       containers:
         - name: mc-server
-          image: itzg/minecraft-bedrock-server # Minecraft bedrock server image
+          image: saulmaldonado/minecraft-bedrock-server # Custom minecraft bedrock server image
           imagePullPolicy: Always
-          env: # Full list of ENV variables at https://github.com/itzg/docker-minecraft-bedrock-server
+          env: # Full list of ENV variables at https://github.com/saulmaldonado/docker-minecraft-bedrock-server
             - name: EULA
               value: "TRUE"
+            - name: WORLD
+              value: /data/world.zip
           volumeMounts:
             - mountPath: /data # shared vol with mc-load and mc-backup
               name: world-vol
@@ -53,7 +79,7 @@ spec:
           args:
             - backup
             - --gcp-bucket-name=agones-minecraft-mc-worlds # GCP Cloud storage bucket name for world archives
-            - --backup-cron=*/5 * * * * # crontab for recurring backups. omiting flag will only run backup once
+            - --backup-cron=0 */6 * * * # crontab for recurring backups. omiting flag will only run backup once
             - --initial-delay=60s # delay for mc-server to build world before scheduling backup jobs
             - --edition=bedrock
           env:
