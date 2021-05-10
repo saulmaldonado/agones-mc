@@ -56,6 +56,7 @@ This application was built to run as a sidecar container alongside Minecraft ser
 
 ### Built With
 
+- [cobra](https://github.com/spf13/cobra)
 - [mc-pinger](https://github.com/Raqbit/mc-pinger)
 - [go-bedrockping](https://github.com/ZeroErrors/go-bedrockping)
 - [Agones Go SDK](agones.dev/agones/sdks/go)
@@ -88,15 +89,33 @@ This application was built to run as a sidecar container alongside Minecraft ser
 kubectl create -f example/mc-server.yml
 ```
 
-[Full GameServer specification example](./example/mc-server.yml)
+[Full Java GameServer specification example](./example/mc-server.yml)
+[Full Bedrock GameServer specification example](./example/mc-server-bedrock.yml)
 
 <!-- USAGE EXAMPLES -->
 
 ## Usage
 
-### Agones GameServer
+### Monitor
 
-A Minecraft server container will serve as the GameServer container. Every GameServer Pod also contains the an sdkServer that will report lifecycle changes to the Agones controller. To signal Minecraft server lifecycle updates, a seperate application integrated with the Agones SDK will ping the Minecraft server and report lifecycle updates to the sdkServer.
+```sh
+agones-mc monitor [flags]
+
+Flags:
+      --attempts uint            Ping attempt limit. Process will end after failing the last (default 5)
+      --edition string           Minecraft server edition. java or bedrock (default "java")
+  -h, --help                     help for monitor
+      --host string              Minecraft server host (default "localhost")
+      --initial-delay duration   Initial startup delay before first ping (default 1m0s)
+      --interval duration        Server ping interval (default 10s)
+      --port uint                Minecraft server port (default 25565)
+```
+
+To utilize Agones GameServer health checking, game containers need to interact with the SDK server sidecar. This sidecar process will ping Minecraft Java/Bedrock game containers and report container health to the SDK server.
+
+On Pod creation it will repeatedly ping minecraft server in the same Pod network (`localhost`) every `interval` (defaults to `10s`). The first successful ping will call `Ready()`. Every subsequent ping will call `Health()`. For an unsuccessful ping, the process will attempt to ping server until successful or until a total of `attempts` (default `5`) consecutive failed pings at which the process will exit
+
+If the server is pinged while starting up (initial world generation), the ping will be considered successful but `Ready()` would not be called.
 
 #### GameServer Pod template example
 
@@ -105,16 +124,22 @@ template:
   spec:
     containers:
       - name: mc-server
-        image: itzg/minecraft-server # Minecraft server image
-        imagePullPolicy: Always
+        image: itzg/minecraft-server # Minecraft Java server image
         env: # Full list of ENV variables at https://github.com/itzg/docker-minecraft-server
           - name: EULA
             value: 'TRUE'
+        volumeMounts:
+          - mountPath: /data # shared vol with mc-load and mc-backup
+            name: world-vol
 
       - name: mc-monitor
-        image: saulmaldonado/agones-mc
+        image: saulmaldonado/agones-mc # monitor
         args:
           - monitor
+          - --attempts=5 # matches spec.health.failureThreshold
+          - --initial-delay=60s # matches spec.health.initialDelaySeconds
+          - --interval=10s # below spec.health.periodSecond
+          - --timeout=10s # matches interval
         imagePullPolicy: Always
 ```
 
@@ -134,26 +159,161 @@ docker-compose -f monitor.docker-compose.yml up
 make docker-compose.monitor
 ```
 
-### Flags
+### Backup
 
-```
-Usage:
-  agones-mc monitor [flags]
+```sh
+agones-mc backup [flags]
 
 Flags:
---attempts uint            Ping attempt limit. Process will end after failing the last attempt (default 5)
+      --backup-cron string       crontab for the backup job (default will run job once)
+      --edition string           minecraft server edition (default "java")
+      --gcp-bucket-name string   Cloud storage bucket name for storing backups
+  -h, --help                     help for backup
+      --host string              Minecraft server host (default "localhost")
+      --initial-delay duration   Initial delay in duration. (default 0s)
+      --rcon-port uint           Minecraft server rcon port (default 25575)
+```
 
---edition string           Minecraft server edition. java or bedrock (default "java")
+`backup` will creates zip archives of world for backup to Google Cloud Storage. The process will use the host's Application Default Credentials (ADC) or attached service account (provided by GCE, GKE, etc.). To run as a sidecar, the container will need a shared volume with the minecraft server's `/data` directory.
 
--h, --help                     help for monitor
+If a crontab is provided through `--backup-cron` the process will schedule backup job according to it, otherwise the backup job will only run once at startup.
 
---host string              Minecraft server host (default "localhost")
+If an `RCON_PASSWORD` env variable is set on the container, the process will attempt to call `save-all` on the minecraft server before backing up
 
---initial-delay duration   Initial startup delay before first ping (default 1m0s)
+When starting a backup job the process will copy the world data at `/data/world` into a zip with the name `<SERVER_NAME>-<UTC_TIMESTAMP>.zip`. The zip will then be uploaded to Google Cloud Storage into the bucket specified by `--gcp-bucket-name`
 
---interval duration        Server ping interval (default 10s)
+#### GameServer Pod template example
 
---port uint                Minecraft server port (default 25565)
+```yml
+template:
+  spec:
+    containers:
+      - name: mc-server
+        image: itzg/minecraft-server # Minecraft Java server image
+        env: # Full list of ENV variables at https://github.com/itzg/docker-minecraft-server
+          - name: EULA
+            value: 'TRUE'
+        volumeMounts:
+          - mountPath: /data # shared vol with mc-load and mc-backup
+            name: world-vol
+
+      - name: mc-backup
+        image: saulmaldonado/agones-mc # backup
+        args:
+          - backup
+          - --gcp-bucket-name=agones-minecraft-mc-worlds # GCP Cloud storage bucket name for world archives
+          - --backup-cron=0 */6 * * * # crontab for recurring backups. omitting flag will only run backup once
+          - --initial-delay=60s # delay for mc-server to build world before scheduling backup jobs
+        env:
+          - name: NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name # GameServer ref for naming backup zip files
+          - name: RCON_PASSWORD
+            value: minecraft # default RCON password. If provided RCON connection will be used to execute 'save-all' before a backup job.
+            # Change the RCON password when exposing RCON port outside the pod
+      volumes:
+      - name: world-vol # shared vol between containers. will not persist between restarts
+        emptyDir: {}
+
+```
+
+[Full Java GameServer specification example](./example/mc-server.yml)
+
+[Full Bedrock GameServer specification example](./example/mc-bedrock-server.yml)
+
+### Run Locally with Docker
+
+Run an example Minecraft GameServer Pod locally with `docker-compose`
+
+```sh
+docker-compose -f backup.docker-compose.yml up
+
+# or
+
+make docker-compose.backup
+```
+
+### Load
+
+```sh
+  agones-mc load [flags]
+
+Flags:
+      --gcp-bucket-name string   Cloud storage bucket name for storing backups
+  -h, --help                     help for load
+      --volume string            Path to minecraft server data volume (default "/data")
+```
+
+Load is an initContainer process that will download an archived world from Google Cloud Storage and load it into the Minecraft container's world directory.
+
+The name of the archived world must be specified using the `BACKUP` env variable. This can be done in a Pod template using a `fieldRef` to a Pod annotation
+
+For example:
+
+The name of the archived world can be specified using `'agones.dev/sdk-backup'` annotation on the pod template (`template.metadata.annotations['agones.dev/sdk-backup']`) and referenced using `metadata.annotations['agones.dev/sdk-backup']`
+
+When downloaded the zip file will be placed into `/data/world.zip` on the current container. A shared volume between the container and the minecraft server's container should be used to place the zip into the minecraft server's `/data` directory. When using the `itzg/minecraft-server` container image, specifying a `WORLD` environment variable that points to the location of an archived zip file will cause the startup script to unzip the world and load it into the `/data/world` directory
+
+#### GameServer Pod template example
+
+```yml
+template:
+  metadata:
+    annotations:
+      agones.dev/sdk-backup: mc-server-qfsgr-2021-05-09T09:35:00Z.zip # mc-load will download this archived world from storage
+  spec:
+    initContainers:
+      - name: mc-load
+        image: saulmaldonado/agones-mc # backup
+        args:
+          - load
+          - --gcp-bucket-name=agones-minecraft-mc-worlds # GCP Cloud storage bucket name for world archives
+        env:
+          - name: NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name # GameServer name ref for logging
+          - name: BACKUP
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.annotations['agones.dev/sdk-backup'] # ref to agones.dev/sdk-backup to download archived world
+        imagePullPolicy: Always
+        volumeMounts:
+          - mountPath: /data # shared vol with mc-server
+            name: world-vol
+
+    containers:
+      - name: mc-server
+        image: itzg/minecraft-server # Minecraft Java server image
+        env: # Full list of ENV variables at https://github.com/itzg/docker-minecraft-server
+          - name: EULA
+            value: 'TRUE'
+          - name: WORLD
+            value: /data/world.zip # path to archived world in shared vol. mc-load initcontainer will download and place the archive at /data/world.zip
+        volumeMounts:
+          - mountPath: /data # shared vol with mc-load and mc-backup
+            name: world-vol
+
+    volumes:
+      - name: world-vol # shared vol between containers. will not persist between restarts
+        emptyDir: {}
+```
+
+[Full Java GameServer specification with world loading example](./example/mc-server-load.yml)
+
+[Full Bedrock GameServer specification with world loading example](./example/mc-bedrock-server-load.yml)
+
+### Run Locally with Docker
+
+Run an example Minecraft GameServer Pod locally with `docker-compose`
+
+```sh
+docker-compose -f load.docker-compose.yml up
+
+# or
+
+make docker-compose.load
 ```
 
 <!-- ROADMAP -->
