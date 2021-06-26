@@ -6,6 +6,8 @@ import (
 	"time"
 
 	sdk "agones.dev/agones/sdks/go"
+
+	"github.com/saulmaldonado/agones-mc/internal/config"
 )
 
 // Minecraft server pinger and SDK state manager
@@ -55,14 +57,14 @@ func New(host string, port uint16, edition string) (*ServerPinger, error) {
 // Ping will timeout after the give timeout duration.
 // Also initializes a connection with the local Agones server on localhost port 9357.
 // Blocks until connection and handshake is made. Timesout and returns an error after 30 seconds
-func NewTimed(host string, port uint16, timeout time.Duration, edition string) (*ServerPinger, error) {
+func NewTimed(host string, port uint16, timeout time.Duration, edition config.Edition) (*ServerPinger, error) {
 	sdk, err := sdk.NewSDK()
 
 	if err != nil {
 		return nil, err
 	}
 
-	if strings.ToLower(edition) == "bedrock" {
+	if strings.ToLower(string(edition)) == "bedrock" {
 		return &ServerPinger{host, port, sdk, &BedrockPinger{Port: port, Host: host, Timeout: timeout}}, nil
 	}
 	return &ServerPinger{host, port, sdk, &McPinger{Port: port, Host: host, Timeout: timeout}}, nil

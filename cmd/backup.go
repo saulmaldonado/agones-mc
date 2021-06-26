@@ -14,21 +14,11 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
+	"github.com/saulmaldonado/agones-mc/internal/config"
 	"github.com/saulmaldonado/agones-mc/pkg/backup"
 	"github.com/saulmaldonado/agones-mc/pkg/backup/google"
 	"github.com/saulmaldonado/agones-mc/pkg/signal"
 )
-
-type BackupConfig struct {
-	Host          string
-	Port          uint
-	Volume        string
-	RCONPassword  string
-	GcpBucketName string
-	InitialDelay  time.Duration
-	ServerName    string
-	Edition       string
-}
 
 var backupLog *zap.SugaredLogger
 
@@ -41,34 +31,24 @@ var backupCmd = cobra.Command{
 		backupLog = zLogger.Sugar().Named("agones-mc-backup")
 		defer zLogger.Sync()
 
-		dur, _ := cmd.Flags().GetDuration("initial-delay")
+		cfg := config.NewBackupConfig()
+
+		dur := cfg.GetInitialDelay()
 		if dur > 0 {
 			backupLog.Infow("Initial delay...", "duration", dur.String())
 			time.Sleep(dur)
 		}
 
-		pw := os.Getenv("RCON_PASSWORD")
-		name := os.Getenv("NAME")
-
-		host, _ := cmd.Flags().GetString("host")
-		port, _ := cmd.Flags().GetUint("rcon-port")
-		vol, _ := cmd.Flags().GetString("volume")
-		bucket, _ := cmd.Flags().GetString("gcp-bucket-name")
-		cron, _ := cmd.Flags().GetString("backup-cron")
-		ed, _ := cmd.Flags().GetString("edition")
-
-		cfg := &BackupConfig{host, port, vol, pw, bucket, dur, name, ed}
-
-		if cron != "" {
+		if cron := cfg.GetBackupCron(); cron != "" {
 			stop := signal.SetupSignalHandler(backupLog)
 
 			s := gocron.NewScheduler(time.UTC)
 
 			s.Cron(cron).Do(func() {
 				if err := RunBackup(cfg); err != nil {
-					backupLog.Errorw("backup failed", "serverName", cfg.ServerName)
+					backupLog.Errorw("backup failed", "serverName", cfg.GetPodName())
 				} else {
-					backupLog.Infow("backup successful", "serverName", cfg.ServerName)
+					backupLog.Infow("backup successful", "serverName", cfg.GetPodName())
 				}
 			})
 
@@ -80,35 +60,27 @@ var backupCmd = cobra.Command{
 		}
 
 		if err := RunBackup(cfg); err != nil {
-			backupLog.Fatalw("backup failed", "serverName", cfg.ServerName)
+			backupLog.Fatalw("backup failed", "serverName", cfg.GetPodName())
 		}
 
-		backupLog.Infow("backup successful", "serverName", cfg.ServerName)
+		backupLog.Infow("backup successful", "serverName", cfg.GetPodName())
 
 	},
 }
 
 func init() {
-	backupCmd.PersistentFlags().String("host", "localhost", "Minecraft server host")
-	backupCmd.PersistentFlags().Uint("rcon-port", 25575, "Minecraft server rcon port")
-	backupCmd.PersistentFlags().String("volume", "/data", "Path to minecraft server data volume")
-	backupCmd.PersistentFlags().String("gcp-bucket-name", "", "Cloud storage bucket name for storing backups")
-	backupCmd.PersistentFlags().Duration("initial-delay", 0, "Initial delay in duration.")
-	backupCmd.PersistentFlags().String("backup-cron", "", "crontab for the backup job")
-	backupCmd.PersistentFlags().String("edition", "java", "minecraft server edition")
-
 	RootCmd.AddCommand(&backupCmd)
 }
 
-func RunBackup(cfg *BackupConfig) error {
+func RunBackup(cfg config.BackupConfig) error {
 	// Run save-all on minecraft server to force save-all before backup
-	if err := saveAll(cfg.Host, cfg.Port, cfg.RCONPassword); err != nil {
+	if err := saveAll(cfg.GetHost(), cfg.GetPort(), cfg.GetRCONPassword()); err != nil {
 		backupLog.Warn(err)
 		backupLog.Warn("Skipping save-all")
 	}
 
 	// Authenticate and create Google Cloud Storage client
-	cloudStorageClient, err := google.New(context.Background(), cfg.GcpBucketName)
+	cloudStorageClient, err := google.New(context.Background(), cfg.GetBucketName())
 	if err != nil {
 		backupLog.Error(err)
 		return err
@@ -116,13 +88,13 @@ func RunBackup(cfg *BackupConfig) error {
 
 	defer cloudStorageClient.Close()
 
-	backupName := fmt.Sprintf("%s-%v.zip", cfg.ServerName, time.Now().Format(time.RFC3339))
+	backupName := fmt.Sprintf("%s-%v.zip", cfg.GetPodName(), time.Now().Format(time.RFC3339))
 
 	var worldPath string
-	if cfg.Edition == "bedrock" {
-		worldPath = path.Join(cfg.Volume, "worlds", "Bedrock level")
+	if cfg.GetEdition() == config.JavaEdition {
+		worldPath = path.Join(cfg.GetVolume(), "worlds", "Bedrock level")
 	} else {
-		worldPath = path.Join(cfg.Volume, "world")
+		worldPath = path.Join(cfg.GetVolume(), "world")
 	}
 
 	// Create zip backup
@@ -151,12 +123,12 @@ func RunBackup(cfg *BackupConfig) error {
 	return nil
 }
 
-func saveAll(host string, port uint, password string) error {
+func saveAll(host string, port int, password string) error {
 	if password == "" {
 		return fmt.Errorf("password env var is empty")
 	}
 
-	hostport := net.JoinHostPort(host, strconv.Itoa(int(port)))
+	hostport := net.JoinHostPort(host, strconv.Itoa(port))
 
 	rc, err := rcon.Dial(hostport, password)
 	if err != nil {

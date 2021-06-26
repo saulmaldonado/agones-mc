@@ -9,18 +9,9 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
+	"github.com/saulmaldonado/agones-mc/internal/config"
 	"github.com/saulmaldonado/agones-mc/pkg/ping"
 	"github.com/saulmaldonado/agones-mc/pkg/signal"
-)
-
-var (
-	host        string
-	port        uint
-	attempts    uint
-	interval    time.Duration
-	timeout     time.Duration
-	intialDelay time.Duration
-	edition     string
 )
 
 var (
@@ -36,14 +27,6 @@ var monitorCmd = cobra.Command{
 }
 
 func init() {
-	monitorCmd.PersistentFlags().StringVar(&edition, "edition", "java", "Minecraft server edition. java or bedrock")
-	monitorCmd.PersistentFlags().StringVar(&host, "host", "localhost", "Minecraft server host")
-	monitorCmd.PersistentFlags().UintVar(&port, "port", 25565, "Minecraft server port")
-	monitorCmd.PersistentFlags().DurationVar(&interval, "interval", time.Second*10, "Server ping interval")
-	monitorCmd.PersistentFlags().UintVar(&attempts, "attempts", 5, "Ping attempt limit. Process will end after failing the last attempt")
-	monitorCmd.PersistentFlags().DurationVar(&timeout, "timeout", interval, "Ping timeout")
-	monitorCmd.PersistentFlags().DurationVar(&intialDelay, "initial-delay", time.Minute, "Initial startup delay before first ping")
-
 	zLogger, _ = zap.NewProduction()
 	logger = zLogger.Sugar()
 
@@ -55,8 +38,10 @@ func RunMonitor(cmd *cobra.Command, args []string) {
 	defer logger.Desugar().Sync()
 	stop := signal.SetupSignalHandler(logger)
 
+	cfg := config.NewMonitorConfig()
+
 	// Create new timed pinger
-	pinger, err := ping.NewTimed(host, uint16(port), timeout, edition)
+	pinger, err := ping.NewTimed(cfg.GetHost(), uint16(cfg.GetPort()), cfg.GetTimeout(), cfg.GetEdition())
 
 	if err != nil {
 		logger.Fatalw("Error creating ping client", "error", err)
@@ -64,10 +49,10 @@ func RunMonitor(cmd *cobra.Command, args []string) {
 
 	// Startup delay before the first ping (initial-delay)
 	logger.Info("Starting up...")
-	time.Sleep(intialDelay)
+	time.Sleep(cfg.GetInitialDelay())
 
 	// Ping server until startup
-	err = pingUntilStartup(attempts, interval, pinger, stop)
+	err = pingUntilStartup(cfg.GetAttempts(), cfg.GetInterval(), pinger, stop)
 
 	// Exit in case of unsuccessful startup
 	if err != nil {
@@ -78,10 +63,10 @@ func RunMonitor(cmd *cobra.Command, args []string) {
 	}
 
 	// delay before next ping cycle
-	time.Sleep(interval)
+	time.Sleep(cfg.GetInterval())
 
 	// Ping infinitely or until after a series of unsuccessful pings
-	err = pingUntilFatal(attempts, interval, pinger, stop)
+	err = pingUntilFatal(cfg.GetAttempts(), cfg.GetInterval(), pinger, stop)
 
 	// Exit in case of fatal server
 	if err != nil {
@@ -95,7 +80,7 @@ func RunMonitor(cmd *cobra.Command, args []string) {
 // Pings server with the specified retries until the server returns a complete response
 // Will also signal the local Agones server with Ready()
 // Returns an error if the pings or singaling local Agones server fails
-func pingUntilStartup(attempts uint, interval time.Duration, pinger *ping.ServerPinger, stop chan bool) error {
+func pingUntilStartup(attempts int, interval time.Duration, pinger *ping.ServerPinger, stop chan bool) error {
 	for {
 		var err error
 		if err = retryPing(attempts, interval, stop, pinger.ReadyPingWithTimeout); err == nil {
@@ -122,7 +107,7 @@ func pingUntilStartup(attempts uint, interval time.Duration, pinger *ping.Server
 
 // Pings the server infinitely or the server fails to reposnd after a series of retries
 // Signals to local SDK that server is healthy
-func pingUntilFatal(attempts uint, interval time.Duration, pinger *ping.ServerPinger, stop chan bool) error {
+func pingUntilFatal(attempts int, interval time.Duration, pinger *ping.ServerPinger, stop chan bool) error {
 	for {
 		err := retryPing(attempts, interval, stop, pinger.HealthPingWithTimeout)
 
@@ -141,7 +126,7 @@ func pingUntilFatal(attempts uint, interval time.Duration, pinger *ping.ServerPi
 
 // Retry wrapper function that will retry the given ping function with the specified attempts and intervals
 // until it dosen't return an error or until all attempts have been made
-func retryPing(attempts uint, interval time.Duration, stop chan bool, p func() error) error {
+func retryPing(attempts int, interval time.Duration, stop chan bool, p func() error) error {
 	for {
 
 		err := p()

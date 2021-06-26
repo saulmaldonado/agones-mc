@@ -2,21 +2,14 @@ package cmd
 
 import (
 	"context"
-	"os"
 
+	"github.com/saulmaldonado/agones-mc/internal/config"
 	"github.com/saulmaldonado/agones-mc/pkg/backup/google"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
 
 var loadLog *zap.SugaredLogger
-
-type LoadConfig struct {
-	GcpBucketName string
-	ServerName    string
-	Volume        string
-	BackupName    string
-}
 
 var loadCmd = cobra.Command{
 	Use:   "load",
@@ -27,42 +20,34 @@ var loadCmd = cobra.Command{
 		loadLog = zLogger.Sugar().Named("agones-mc-load")
 		defer zLogger.Sync()
 
-		backup := os.Getenv("BACKUP")
-		name := os.Getenv("NAME")
+		cfg := config.NewLoadConfig()
 
-		if backup == "" {
+		if cfg.GetBackupName() == "" {
 			loadLog.Infow("No backup annotation. Creating a new world.")
 			return
 		}
 
-		bkt, _ := cmd.Flags().GetString("gcp-bucket-name")
-		vol, _ := cmd.Flags().GetString("volume")
-		cfg := &LoadConfig{bkt, name, vol, backup}
-
-		loadLog.Infow("loading saved world", "serverName", cfg.ServerName, "backupName", cfg.BackupName)
+		loadLog.Infow("loading saved world", "serverName", cfg.GetPodName(), "backupName", cfg.GetBackupName())
 
 		if err := RunLoad(cfg); err != nil {
-			loadLog.Fatalw("world loading failed", "serverName", cfg.ServerName, "backupName", cfg.BackupName)
+			loadLog.Fatalw("world loading failed", "serverName", cfg.GetPodName(), "backupName", cfg.GetBackupName())
 		}
-		loadLog.Infow("world loading succeeded", "serverName", cfg.ServerName, "backupName", cfg.BackupName)
+		loadLog.Infow("world loading succeeded", "serverName", cfg.GetPodName(), "backupName", cfg.GetBackupName())
 	},
 }
 
 func init() {
-	loadCmd.PersistentFlags().String("gcp-bucket-name", "", "Cloud storage bucket name for storing backups")
-	loadCmd.PersistentFlags().String("volume", "/data", "Path to minecraft server data volume")
-
 	RootCmd.AddCommand(&loadCmd)
 }
 
-func RunLoad(cfg *LoadConfig) error {
-	client, err := google.New(context.Background(), cfg.GcpBucketName)
+func RunLoad(cfg config.LoadConfig) error {
+	client, err := google.New(context.Background(), cfg.GetBucketName())
 	if err != nil {
 		loadLog.Error(err)
 		return err
 	}
 
-	if err := client.Load(cfg.BackupName, cfg.Volume); err != nil {
+	if err := client.Load(cfg.GetBackupName(), cfg.GetVolume()); err != nil {
 		loadLog.Error(err)
 		return err
 	}
