@@ -34,18 +34,19 @@ spec:
           image: saulmaldonado/agones-mc # backup
           args:
             - load
-            - --gcp-bucket-name=agones-minecraft-mc-worlds # GCP Cloud storage bucket name for world archives
           env:
             - name: BUCKET_NAME
               value: agones-minecraft-mc-worlds
-            - name:
-              valueFrom: POD_NAME
+            - name: POD_NAME
+              valueFrom:
                 fieldRef:
                   fieldPath: metadata.name # GameServer name ref for logging
             - name: BACKUP_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.annotations['agones.dev/sdk-backup'] # ref to agones.dev/sdk-backup to download archived world
+            - name: VOLUME
+              value: /data
           imagePullPolicy: Always
           volumeMounts:
             - mountPath: /data # shared vol with mc-server

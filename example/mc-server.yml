@@ -52,6 +52,8 @@ spec:
 
         - name: mc-backup
           image: saulmaldonado/agones-mc # backup
+          args:
+            - backup
           env:
             - name: BUCKET_NAME
               value: agones-minecraft-mc-worlds
@@ -66,9 +68,6 @@ spec:
             - name: RCON_PASSWORD
               value: minecraft # default rcon password. If provided RCON connection will be used to execute 'save-all' before a backup job.
               # Change the rcon password when exposing RCON port outside the pod
-          args:
-            - backup
-          env:
           imagePullPolicy: Always
           volumeMounts:
             - mountPath: /data # shared vol with mc-server

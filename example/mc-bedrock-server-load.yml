@@ -45,6 +45,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.annotations['agones.dev/sdk-backup'] # ref to agones.dev/sdk-backup to download archived world
+            - name: VOLUME
+              value: /data
           imagePullPolicy: Always
           volumeMounts:
             - mountPath: /data # shared vol with mc-server
@@ -58,7 +60,7 @@ spec:
             - name: EULA
               value: "TRUE"
             - name: WORLD
-              value: /data/world.zip
+              value: /data/world.zip # Path to zip world archive. container init script will unzip world into its world dir.
           volumeMounts:
             - mountPath: /data # shared vol with mc-load and mc-backup
               name: world-vol
