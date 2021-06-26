@@ -34,13 +34,14 @@ spec:
           image: saulmaldonado/agones-mc # backup
           args:
             - load
-            - --gcp-bucket-name=agones-minecraft-mc-worlds # GCP Cloud storage bucket name for world archives
           env:
-            - name: NAME
+            - name: BUCKET_NAME
+              value: agones-minecraft-mc-worlds
+            - name: POD_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name # GameServer name ref for logging
-            - name: BACKUP
+            - name: BACKUP_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.annotations['agones.dev/sdk-backup'] # ref to agones.dev/sdk-backup to download archived world
@@ -66,27 +67,41 @@ spec:
           image: saulmaldonado/agones-mc
           args:
             - monitor
-            - --attempts=5 # matches spec.health.failureThreshold
-            - --initial-delay=60s # matches spec.health.initialDelaySeconds
-            - --interval=10s # below spec.health.periodSecond
-            - --timeout=10s # matches interval
-            - --port=19132 # matches mc-server containerPort
-            - --edition=bedrock # bedrock edition
+          env:
+            - name: INITIAL_DELAY
+              value: 30s
+            - name: MAX_ATTEMPTS
+              value: 5
+            - name: INTERVAL
+              value: 10s
+            - name: TIMEOUT
+              value: 10s
+            - name: PORT
+              value: 19132
+            - name: EDITION
+              value: bedrock
           imagePullPolicy: Always
 
         - name: mc-backup
           image: saulmaldonado/agones-mc # backup
           args:
             - backup
-            - --gcp-bucket-name=agones-minecraft-mc-worlds # GCP Cloud storage bucket name for world archives
-            - --backup-cron=0 */6 * * * # crontab for recurring backups. omiting flag will only run backup once
-            - --initial-delay=60s # delay for mc-server to build world before scheduling backup jobs
-            - --edition=bedrock
           env:
-            - name: NAME
+            - name: BUCKET_NAME
+              value: agones-minecraft-mc-worlds
+            - name: BACKUP_CRON
+              value: 0 */6 * * *
+            - name: INITIAL_DELAY
+              value: 60s
+            - name: EDITION
+              value: bedrock
+            - name: POD_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name # GameServer ref for naming backup zip files
+            - name: RCON_PASSWORD
+              value: minecraft # default rcon password. If provided RCON connection will be used to execute 'save-all' before a backup job.
+              # Change the rcon password when exposing RCON port outside the pod
           imagePullPolicy: Always
           volumeMounts:
             - mountPath: /data # shared vol with mc-server

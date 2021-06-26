@@ -37,29 +37,38 @@ spec:
 
         - name: mc-monitor
           image: saulmaldonado/agones-mc # monitor
+          env:
+            - name: INITIAL_DELAY
+              value: 60s
+            - name: MAX_ATTEMPTS
+              value: 5
+            - name: INTERVAL
+              value: 10s
+            - name: TIMEOUT
+              value: 10s
           args:
             - monitor
-            - --attempts=5 # matches spec.health.failureThreshold
-            - --initial-delay=60s # matches spec.health.initialDelaySeconds
-            - --interval=10s # below spec.health.periodSecond
-            - --timeout=10s # matches interval
           imagePullPolicy: Always
 
         - name: mc-backup
           image: saulmaldonado/agones-mc # backup
-          args:
-            - backup
-            - --gcp-bucket-name=agones-minecraft-mc-worlds # GCP Cloud storage bucket name for world archives
-            - --backup-cron=0 */6 * * * # crontab for recurring backups. omiting flag will only run backup once
-            - --initial-delay=60s # delay for mc-server to build world before scheduling backup jobs
           env:
-            - name: NAME
+            - name: BUCKET_NAME
+              value: agones-minecraft-mc-worlds
+            - name: BACKUP_CRON
+              value: 0 */6 * * *
+            - name: INITIAL_DELAY
+              value: 60s
+            - name: POD_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name # GameServer ref for naming backup zip files
             - name: RCON_PASSWORD
               value: minecraft # default rcon password. If provided RCON connection will be used to execute 'save-all' before a backup job.
               # Change the rcon password when exposing RCON port outside the pod
+          args:
+            - backup
+          env:
           imagePullPolicy: Always
           volumeMounts:
             - mountPath: /data # shared vol with mc-server
