@@ -7,15 +7,33 @@ import (
 )
 
 type Edition string
+type Environment string
+type Subcommand string
 
 const (
+	// subcommands
+
+	Monitor Subcommand = "monitor"
+	Backup  Subcommand = "backup"
+	Load    Subcommand = "load"
+)
+
+const (
+	// edition
+
 	JavaEdition    Edition = "java"
 	BedrockEdition Edition = "bedrock"
+
+	// environment
+
+	Development Environment = "development"
+	Production  Environment = "production"
 )
 
 const (
 	// shared config
 
+	ENVIRONMENT   string = "ENVIRONMENT"
 	INITIAL_DELAY string = "INITIAL_DELAY"
 
 	// server config
@@ -35,6 +53,7 @@ const (
 	TIMEOUT      string = "TIMEOUT"
 
 	// backup config
+
 	BUCKET_NAME string = "BUCKET_NAME"
 	BACKUP_CRON string = "BACKUP_CRON"
 	BACKUP_NAME string = "BACKUP_NAME"
@@ -43,6 +62,9 @@ const (
 var (
 	// defaults
 
+	// shared
+
+	ENVIRONMENT_DEFAULT   Environment   = Development
 	INITIAL_DELAY_DEFAULT time.Duration = time.Second * 30
 
 	// server config
@@ -70,6 +92,7 @@ var (
 
 type SharedConfig interface {
 	GetInitialDelay() time.Duration
+	GetEnvironment() Environment
 }
 
 type ServerConfig interface {
@@ -105,6 +128,14 @@ type LoadConfig interface {
 }
 
 type sharedConfig struct{}
+
+func NewSharedConfig() SharedConfig {
+	return sharedConfig{}
+}
+
+func (sharedConfig) GetEnvironment() Environment {
+	return Environment(viper.GetString(string(ENVIRONMENT)))
+}
 
 func (sharedConfig) GetInitialDelay() time.Duration {
 	return viper.GetDuration(INITIAL_DELAY)

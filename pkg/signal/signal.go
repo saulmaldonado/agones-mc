@@ -4,13 +4,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"go.uber.org/zap"
 )
 
-type logger interface {
-	Info(args ...interface{})
-}
-
-func SetupSignalHandler(log logger) chan bool {
+func SetupSignalHandler(log *zap.Logger) chan bool {
 	termC := make(chan os.Signal, 1)
 	intC := make(chan os.Signal, 1)
 	stop := make(chan bool)

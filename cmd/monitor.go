@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"time"
 
@@ -14,11 +13,6 @@ import (
 	"github.com/saulmaldonado/agones-mc/pkg/signal"
 )
 
-var (
-	logger  *zap.SugaredLogger
-	zLogger *zap.Logger
-)
-
 var monitorCmd = cobra.Command{
 	Use:   "monitor",
 	Short: "Agones minecraft server monitor",
@@ -27,29 +21,25 @@ var monitorCmd = cobra.Command{
 }
 
 func init() {
-	zLogger, _ = zap.NewProduction()
-	logger = zLogger.Sugar()
-
 	RootCmd.AddCommand(&monitorCmd)
 }
 
 // Main monitor function
 func RunMonitor(cmd *cobra.Command, args []string) {
-	defer logger.Desugar().Sync()
-	stop := signal.SetupSignalHandler(logger)
-
 	cfg := config.NewMonitorConfig()
 
 	// Create new timed pinger
 	pinger, err := ping.NewTimed(cfg.GetHost(), uint16(cfg.GetPort()), cfg.GetTimeout(), cfg.GetEdition())
 
 	if err != nil {
-		logger.Fatalw("Error creating ping client", "error", err)
+		logger.Fatal("error creating ping client", zap.Error(err))
 	}
 
 	// Startup delay before the first ping (initial-delay)
 	logger.Info("Starting up...")
 	time.Sleep(cfg.GetInitialDelay())
+
+	stop := signal.SetupSignalHandler(logger)
 
 	// Ping server until startup
 	err = pingUntilStartup(cfg.GetAttempts(), cfg.GetInterval(), pinger, stop)
@@ -59,7 +49,7 @@ func RunMonitor(cmd *cobra.Command, args []string) {
 		if errors.Is(err, &ProcessStopped{}) {
 			os.Exit(0)
 		}
-		logger.Fatalw("Fatal Mincraft server. Exiting...", "error", err)
+		logger.Fatal("fatal Mincraft server. exiting...", zap.Error(err))
 	}
 
 	// delay before next ping cycle
@@ -73,7 +63,7 @@ func RunMonitor(cmd *cobra.Command, args []string) {
 		if errors.Is(err, &ProcessStopped{}) {
 			os.Exit(0)
 		}
-		logger.Fatalw("Fatal Mincraft server. Exiting...", "error", err)
+		logger.Fatal("fatal Mincraft server. exiting...", zap.Error(err))
 	}
 }
 
@@ -88,7 +78,7 @@ func pingUntilStartup(attempts int, interval time.Duration, pinger *ping.ServerP
 		}
 
 		if _, ok := err.(ping.StartingUpErr); ok {
-			logger.Errorw("Server still starting...", "attemptsLeft", attempts, "errorMessage", err.Error())
+			logger.Error("server still starting...", zap.Int("attemptsLeft", attempts), zap.Error(err))
 		} else {
 			return err
 		}
@@ -132,7 +122,7 @@ func retryPing(attempts int, interval time.Duration, stop chan bool, p func() er
 		err := p()
 		if err != nil {
 			if attempts-1 > 0 {
-				logger.Errorw(fmt.Sprintf("Unsuccessful ping. retrying in %v...", interval), "attemptsLeft", attempts-1, "errorMessage", err.Error())
+				logger.Error("unsuccessful ping", zap.Duration("retryInterval", interval), zap.Int("attemptsLeft", attempts-1), zap.Error(err))
 				attempts--
 			} else {
 				return err

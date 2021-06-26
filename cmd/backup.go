@@ -20,35 +20,29 @@ import (
 	"github.com/saulmaldonado/agones-mc/pkg/signal"
 )
 
-var backupLog *zap.SugaredLogger
-
 var backupCmd = cobra.Command{
 	Use:   "backup",
 	Short: "Saves and backsup minecraft world",
 	Long:  "backup is for saving and backup up current minecraft world",
 	Run: func(cmd *cobra.Command, args []string) {
-		zLogger, _ := zap.NewProduction()
-		backupLog = zLogger.Sugar().Named("agones-mc-backup")
-		defer zLogger.Sync()
-
 		cfg := config.NewBackupConfig()
 
 		dur := cfg.GetInitialDelay()
 		if dur > 0 {
-			backupLog.Infow("Initial delay...", "duration", dur.String())
+			logger.Info("initial delay...", zap.Duration("duration", dur))
 			time.Sleep(dur)
 		}
 
 		if cron := cfg.GetBackupCron(); cron != "" {
-			stop := signal.SetupSignalHandler(backupLog)
+			stop := signal.SetupSignalHandler(logger)
 
 			s := gocron.NewScheduler(time.UTC)
 
 			s.Cron(cron).Do(func() {
 				if err := RunBackup(cfg); err != nil {
-					backupLog.Errorw("backup failed", "serverName", cfg.GetPodName())
+					logger.Error("backup failed", zap.String("serverName", cfg.GetPodName()), zap.Error(err))
 				} else {
-					backupLog.Infow("backup successful", "serverName", cfg.GetPodName())
+					logger.Info("backup successful", zap.String("serverName", cfg.GetPodName()))
 				}
 			})
 
@@ -60,10 +54,10 @@ var backupCmd = cobra.Command{
 		}
 
 		if err := RunBackup(cfg); err != nil {
-			backupLog.Fatalw("backup failed", "serverName", cfg.GetPodName())
+			logger.Fatal("backup failed", zap.String("serverName", cfg.GetPodName()))
 		}
 
-		backupLog.Infow("backup successful", "serverName", cfg.GetPodName())
+		logger.Info("backup successful", zap.String("serverName", cfg.GetPodName()))
 
 	},
 }
@@ -75,14 +69,13 @@ func init() {
 func RunBackup(cfg config.BackupConfig) error {
 	// Run save-all on minecraft server to force save-all before backup
 	if err := saveAll(cfg.GetHost(), cfg.GetPort(), cfg.GetRCONPassword()); err != nil {
-		backupLog.Warn(err)
-		backupLog.Warn("Skipping save-all")
+		logger.Warn("error saving world. skipping save-all", zap.Error(err))
 	}
 
 	// Authenticate and create Google Cloud Storage client
 	cloudStorageClient, err := google.New(context.Background(), cfg.GetBucketName())
 	if err != nil {
-		backupLog.Error(err)
+		logger.Error("error connecting to bucket", zap.Error(err))
 		return err
 	}
 
@@ -100,13 +93,13 @@ func RunBackup(cfg config.BackupConfig) error {
 	// Create zip backup
 	err = backup.Zipit(worldPath, backupName)
 	if err != nil {
-		backupLog.Error(err)
+		logger.Error("error creating zip backup", zap.Error(err))
 		return err
 	}
 
 	file, err := os.Open(backupName)
 	if err != nil {
-		backupLog.Error(err)
+		logger.Error("error creating zip backup", zap.Error(err))
 		return err
 	}
 
@@ -114,7 +107,7 @@ func RunBackup(cfg config.BackupConfig) error {
 
 	// Backup to Google Cloud Storage
 	if err := cloudStorageClient.Backup(file); err != nil {
-		backupLog.Error(err)
+		logger.Error("error backup up to bucket", zap.Error(err))
 		return err
 	}
 
@@ -148,10 +141,10 @@ func saveAll(host string, port int, password string) error {
 	}
 
 	if reqId != resId {
-		backupLog.Warnf("Mismatch in request ids", "reqId", reqId, "resId", resId)
+		logger.Warn("mismatch RCON request and response id", zap.Int("reqId", reqId), zap.Int("resId", resId))
 	}
 
-	backupLog.Info(res)
+	logger.Info(res)
 
 	return nil
 }
