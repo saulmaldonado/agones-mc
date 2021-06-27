@@ -79,6 +79,19 @@ spec:
           volumeMounts:
             - mountPath: /data # shared vol with mc-server
               name: world-vol
+
+        - name: mc-fileserver # fileserver
+          image: saulmaldonado/agones-mc
+          args:
+            - fileserver
+          env:
+            - name: VOLUME
+              value: /data
+          imagePullPolicy: Always
+          volumeMounts:
+            - mountPath: /data # shared vol with mc-server
+              name: world-vol
+
       volumes:
         - name: world-vol # shared vol between containers. will not persist bewteen restarts
           emptyDir: {}
