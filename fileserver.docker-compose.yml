@@ -1,0 +1,23 @@
+version: '3.9'
+services:
+  agones-mc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      - fileserver
+
+    environment:
+      VOLUME: /data
+    volumes:
+      - mc-world:/data
+
+  minecraft:
+    image: itzg/minecraft-server
+    environment:
+      EULA: 'TRUE'
+    volumes:
+      - mc-world:/data
+
+volumes:
+  mc-world:
