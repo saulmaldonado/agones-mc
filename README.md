@@ -339,6 +339,92 @@ docker-compose -f load.docker-compose.yml up
 make docker-compose.load
 ```
 
+### Fileserver
+
+```sh
+  agones-mc fileserver
+```
+
+### Environment variables
+
+- `VOLUME`: volume mount path to load minecraft world into (default `"/data"`)
+
+fileserver is a Go http fileserver for viewing, adding, editing, and deleting configuration files in the shared minecraft data volume in a pod.
+
+`GET: /:path-to-file`
+
+Response: `Content-Type: application/json`
+
+Access file or traverse directory in the volume
+
+`POST: /:filename`
+
+Request: `Content-Type: multipart/form-data`
+
+Creates a new file in the volume
+
+`PUT: /:filename`
+
+Request: `Content-Type: multipart/form-data`
+
+edits existing file in the volume
+
+`DELETE: /filename`
+
+deletes existing file in the volume
+
+For example:
+
+`GET: /whitelist.json` will download the `/data/whitelist.json`
+
+#### GameServer Pod template example
+
+```yml
+template:
+  spec:
+    containers:
+      - name: mc-server
+        image: itzg/minecraft-server # Minecraft Java server image
+        env: # Full list of ENV variables at https://github.com/itzg/docker-minecraft-server
+          - name: EULA
+            value: "TRUE"
+        volumeMounts:
+          - mountPath: /data # shared vol with mc-load and mc-backup
+            name: world-vol
+
+      - name: mc-fileserver # fileserver
+          image: saulmaldonado/agones-mc
+          args:
+            - fileserver
+          env:
+            - name: VOLUME
+              value: /data
+          imagePullPolicy: Always
+          volumeMounts:
+            - mountPath: /data # shared vol with mc-server
+              name: world-vol
+
+    volumes:
+      - name: world-vol # shared vol between containers. will not persist between restarts
+        emptyDir: {}
+```
+
+[Full Java GameServer specification with world loading example](./example/mc-server.yml)
+
+[Full Bedrock GameServer specification with world loading example](./example/mc-bedrock-server.yml)
+
+### Run Locally with Docker
+
+Run an example Minecraft GameServer Pod locally with `docker-compose`
+
+```sh
+docker-compose -f fileserver.docker-compose.yml up
+
+# or
+
+make docker-compose.load
+```
+
 <!-- ROADMAP -->
 
 ## Roadmap
