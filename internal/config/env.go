@@ -127,6 +127,10 @@ type LoadConfig interface {
 	GetBackupName() string
 }
 
+type FileserverConfig interface {
+	GetVolume() string
+}
+
 type sharedConfig struct{}
 
 func NewSharedConfig() SharedConfig {
@@ -224,6 +228,16 @@ func (loadConfig) GetBucketName() string {
 
 func (loadConfig) GetBackupName() string {
 	return viper.GetString(BACKUP_NAME)
+}
+
+type fileServerConfig struct{}
+
+func NewFileServerConfig() fileServerConfig {
+	return fileServerConfig{}
+}
+
+func (fileServerConfig) GetVolume() string {
+	return viper.GetString(VOLUME)
 }
 
 func init() {
