@@ -34,11 +34,17 @@ docker-compose.backup:
 docker-compose.load:
 	docker-compose -f load.docker-compose.yml up
 
+docker-compose.fileserver:
+	docker-compose -f fileserver.docker-compose.yml up
+
 docker-compose.bedrock.backup:
 	docker-compose -f backup.bedrock.docker-compose.yml up
 
 docker-compose.bedrock.load:
 	docker-compose -f load.bedrock.docker-compose.yml up
+
+docker-compose.bedrock.fileserver:
+	docker-compose -f fileserver.bedrock.docker-compose.yml up
 
 clean:
 	@rm -rf build
